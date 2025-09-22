@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { scrapeWithPlaywright } from '@/lib/scraping'
+import { scrapeWithPuppeteer } from '@/lib/puppeteer-scraping'
 
 const RefreshSchema = z.object({
   id: z.string().optional(),
@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
           }
           const productId = productIdMatch[1]
 
-          // Scrape the product data using Playwright
-          const scrapedData = await scrapeWithPlaywright(link.card.url, productId)
+          // Scrape the product data using Puppeteer
+          const scrapedData = await scrapeWithPuppeteer(link.card.url, productId)
 
           // Update the card
           const updatedCard = await prisma.card.update({

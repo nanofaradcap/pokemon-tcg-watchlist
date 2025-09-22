@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { scrapeWithPlaywright } from '@/lib/scraping'
+import { scrapeWithPuppeteer } from '@/lib/puppeteer-scraping'
 
 const BodySchema = z.object({
   url: z.string().url(),
@@ -60,21 +60,21 @@ export async function POST(req: NextRequest) {
     }
     const productId = productIdMatch[1]
 
-    // Use Playwright scraping
+    // Use Puppeteer scraping
     try {
-      console.log(`Starting Playwright scraping for product ${productId}`)
-      const result = await scrapeWithPlaywright(url, productId)
-      console.log(`Playwright scraping succeeded for product ${productId}`)
+      console.log(`Starting Puppeteer scraping for product ${productId}`)
+      const result = await scrapeWithPuppeteer(url, productId)
+      console.log(`Puppeteer scraping succeeded for product ${productId}`)
       return NextResponse.json(result)
-    } catch (playwrightError) {
-      console.error(`Playwright failed for product ${productId}:`, {
-        error: playwrightError instanceof Error ? playwrightError.message : 'Unknown error',
-        stack: playwrightError instanceof Error ? playwrightError.stack : undefined
+    } catch (puppeteerError) {
+      console.error(`Puppeteer failed for product ${productId}:`, {
+        error: puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error',
+        stack: puppeteerError instanceof Error ? puppeteerError.stack : undefined
       })
       return NextResponse.json(
         { 
           error: 'Failed to scrape product data',
-          details: playwrightError instanceof Error ? playwrightError.message : 'Unknown error'
+          details: puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error'
         },
         { status: 500 }
       )

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { scrapeWithPlaywright, type ScrapedData } from '@/lib/scraping'
+import { scrapeWithPuppeteer, type ScrapedData } from '@/lib/puppeteer-scraping'
+import { scrapeWithFallback } from '@/lib/scraping-fallback'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 type Profile = typeof Profiles[number]
@@ -90,24 +91,32 @@ export async function POST(req: NextRequest) {
     }
     const productId = productIdMatch[1]
 
-    // Scrape the product data using Playwright
+    // Scrape the product data using Puppeteer with fallback
     let scrapedData: ScrapedData
 
     try {
-      scrapedData = await scrapeWithPlaywright(url, productId)
-      console.log('Playwright scraping succeeded')
-    } catch (playwrightError) {
-      console.error('Playwright scraping failed:', playwrightError)
-      return NextResponse.json(
-        { 
-          error: 'Failed to scrape product data. This may be due to server limitations in production. Please try again later.', 
-          details: {
-            error: playwrightError instanceof Error ? playwrightError.message : 'Unknown error',
-            suggestion: 'If this persists, the TCGplayer page may be temporarily unavailable or the URL may be invalid.'
-          }
-        },
-        { status: 500 }
-      )
+      scrapedData = await scrapeWithPuppeteer(url, productId)
+      console.log('Puppeteer scraping succeeded')
+    } catch (puppeteerError) {
+      console.warn('Puppeteer scraping failed, using fallback method:', puppeteerError)
+      
+      // Use fallback method for production
+      try {
+        scrapedData = await scrapeWithFallback(url, productId)
+        console.log('Fallback scraping succeeded')
+      } catch (fallbackError) {
+        console.error('Both scraping methods failed:', { puppeteerError, fallbackError })
+        return NextResponse.json(
+          { 
+            error: 'Failed to scrape product data', 
+            details: {
+              puppeteerError: puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error',
+              fallbackError: fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
+            }
+          },
+          { status: 500 }
+        )
+      }
     }
 
     // Ensure profile row exists
