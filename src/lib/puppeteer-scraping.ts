@@ -39,9 +39,9 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       ]
     }
 
-    // For Vercel, use the built-in Chrome
+    // For Vercel, use the system Chrome
     if (process.env.VERCEL) {
-      launchOptions.executablePath = '/opt/chrome/chrome'
+      launchOptions.executablePath = '/usr/bin/chromium-browser'
     }
 
     browser = await puppeteer.launch(launchOptions)
