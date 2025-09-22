@@ -247,7 +247,7 @@ async function scrapeWithPlaywright(url: string, productId: string) {
       )
     ])
 
-    return result
+    return NextResponse.json(result)
   } finally {
     await browser.close()
   }
