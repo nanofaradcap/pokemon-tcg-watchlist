@@ -1,4 +1,37 @@
-import puppeteer, { Browser } from 'puppeteer'
+import chromium from '@sparticuz/chromium-min'
+
+const DEFAULT_CHROMIUM_VERSION = 'v138.0.2'
+
+function resolveChromiumPackUrl(): string {
+  if (process.env.CHROMIUM_PACK_URL) {
+    return process.env.CHROMIUM_PACK_URL
+  }
+
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  return `https://github.com/Sparticuz/chromium/releases/download/${DEFAULT_CHROMIUM_VERSION}/chromium-${DEFAULT_CHROMIUM_VERSION}-pack.${arch}.tar`
+}
+
+type Browser = import('puppeteer-core').Browser
+type LaunchOptions = import('puppeteer-core').LaunchOptions
+
+type PuppeteerLike = {
+  launch(options?: LaunchOptions): Promise<Browser>
+}
+
+let cachedPuppeteer: PuppeteerLike | null = null
+
+async function loadPuppeteer(): Promise<PuppeteerLike> {
+  if (cachedPuppeteer) return cachedPuppeteer
+
+  const importedModule = process.env.VERCEL
+    ? await import('puppeteer-core')
+    : await import('puppeteer')
+
+  const puppeteer = (importedModule && 'default' in importedModule ? importedModule.default : importedModule) as PuppeteerLike
+
+  cachedPuppeteer = puppeteer
+  return puppeteer
+}
 
 export interface ScrapedData {
   url: string
@@ -16,11 +49,9 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
   
   try {
     // Configure Puppeteer for Vercel
-    const launchOptions: {
-      headless: boolean
-      args: string[]
-      executablePath?: string
-    } = {
+    const puppeteer = await loadPuppeteer()
+
+    const launchOptions: LaunchOptions = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -36,12 +67,21 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding'
-      ]
+      ],
     }
 
-    // For Vercel, use the system Chrome
     if (process.env.VERCEL) {
-      launchOptions.executablePath = '/usr/bin/chromium-browser'
+      const chromiumPackUrl = resolveChromiumPackUrl()
+      const executablePath = await chromium.executablePath(chromiumPackUrl)
+
+      if (!executablePath) {
+        throw new Error('Failed to resolve Chromium executable path in Vercel environment')
+      }
+
+      launchOptions.headless = 'shell'
+      launchOptions.args = chromium.args || launchOptions.args
+      launchOptions.defaultViewport = { width: 1280, height: 720 }
+      launchOptions.executablePath = executablePath
     }
 
     browser = await puppeteer.launch(launchOptions)
@@ -67,8 +107,36 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       // Continue even if h1 doesn't appear
     }
 
-    // Extract data
+    // Extract data with structured return shape that serializes cleanly
     const data = await page.evaluate(() => {
+      const parseNextData = () => {
+        const nextDataEl = document.querySelector('#__NEXT_DATA__') as HTMLScriptElement | null
+        if (!nextDataEl?.textContent) return null
+        try {
+          return JSON.parse(nextDataEl.textContent) as Record<string, unknown>
+        } catch (err) {
+          console.warn('Failed to parse __NEXT_DATA__ JSON:', err)
+          return null
+        }
+      }
+
+      const nextData = parseNextData() as
+        | {
+            props?: {
+              pageProps?: {
+                product?: {
+                  media?: {
+                    images?: Array<{ url?: string }>
+                    cardImages?: Array<{ url?: string }>
+                  }
+                  image?: { url?: string }
+                  productImage?: { url?: string }
+                  images?: Array<{ url?: string }>
+                }
+              }
+            }
+          }
+        | null
       // Market Price extraction
       const priceElements = Array.from(document.querySelectorAll('span.price-points__upper__price'))
       const marketPriceText = priceElements[0]?.textContent?.trim() || ''
@@ -95,19 +163,44 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       const rarity = rarityMatch?.[1]?.trim() || ''
 
       // Image URL extraction
-      const imgSelectors = [
-        'img[data-testid="product-detail__image"]',
-        'img[alt*="product"]',
-        'img[src*="product-images.tcgplayer.com"]',
-        'img[src*="tcgplayer-cdn.tcgplayer.com/product/"]'
-      ]
-      
       let imageUrl = ''
-      for (const selector of imgSelectors) {
-        const img = document.querySelector(selector) as HTMLImageElement | null
-        if (img?.src) {
-          imageUrl = img.src
-          break
+
+      if (nextData?.props?.pageProps?.product) {
+        const product = nextData.props.pageProps.product as {
+          media?: {
+            images?: Array<{ url?: string }>
+            cardImages?: Array<{ url?: string }>
+          }
+          image?: { url?: string }
+          productImage?: { url?: string }
+          images?: Array<{ url?: string }>
+        }
+
+        const candidateUrls = [
+          product.media?.images?.[0]?.url,
+          product.media?.cardImages?.[0]?.url,
+          product.image?.url,
+          product.productImage?.url,
+          product.images?.[0]?.url,
+        ]
+
+        imageUrl = candidateUrls.find((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0) || ''
+      }
+
+      if (!imageUrl) {
+        const imgSelectors = [
+          'img[data-testid="product-detail__image"]',
+          'img[alt*="product"]',
+          'img[src*="product-images.tcgplayer.com"]',
+          'img[src*="tcgplayer-cdn.tcgplayer.com/product/"]'
+        ]
+
+        for (const selector of imgSelectors) {
+          const img = document.querySelector(selector) as HTMLImageElement | null
+          if (img?.src) {
+            imageUrl = img.src
+            break
+          }
         }
       }
 
@@ -117,7 +210,7 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         setDisplay,
         jpNo,
         rarity,
-        imageUrl
+        imageUrl,
       }
     })
 
@@ -126,12 +219,13 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       ? Number(data.marketPriceText.replace(/[^0-9.]/g, '')) 
       : null
 
-    // Construct or normalize image URL
-    let imageUrl = data.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`
-    const cdnMatch = imageUrl.match(/^(https:\/\/tcgplayer-cdn\.tcgplayer\.com\/product\/)\d+_in_\d+x\d+(\.jpg)$/)
-    if (cdnMatch) {
-      imageUrl = `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`
-    }
+    const canonicalImageUrl = `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`
+
+    // Prefer canonical CDN image; fall back only if scraping produced a URL on a different host.
+    const scrapedImage = data.imageUrl || undefined
+    const imageUrl = scrapedImage && !scrapedImage.includes('tcgplayer-cdn.tcgplayer.com/')
+      ? scrapedImage
+      : canonicalImageUrl
 
     return {
       url,
