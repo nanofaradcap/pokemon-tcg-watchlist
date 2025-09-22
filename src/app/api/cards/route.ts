@@ -80,7 +80,16 @@ export async function POST(req: NextRequest) {
     const profile: Profile = profileInput || 'Chen'
 
     // First, try to scrape the product data with fallback strategy
-    let scrapedData: Record<string, unknown>
+    let scrapedData: {
+      url: string
+      productId: string
+      name: string
+      setDisplay?: string
+      jpNo?: string
+      rarity?: string
+      imageUrl?: string
+      marketPrice?: number
+    }
     let scrapeError: string | null = null
 
     try {
@@ -94,11 +103,11 @@ export async function POST(req: NextRequest) {
       })
 
       if (scrapeResponse.ok) {
-        scrapedData = await scrapeResponse.json()
+        scrapedData = await scrapeResponse.json() as typeof scrapedData
       } else {
         const errorData = await scrapeResponse.json()
         scrapeError = errorData.error || 'Playwright scraping failed'
-        throw new Error(scrapeError)
+        throw new Error(scrapeError || 'Playwright scraping failed')
       }
     } catch (playwrightError) {
       console.warn('Playwright scraping failed, trying simple fallback:', playwrightError)
@@ -118,7 +127,7 @@ export async function POST(req: NextRequest) {
           throw new Error(errorData.error || 'Simple scraping failed')
         }
 
-        scrapedData = await simpleResponse.json()
+        scrapedData = await simpleResponse.json() as typeof scrapedData
         console.log('Simple scraping succeeded as fallback')
       } catch (simpleError) {
         console.error('Both scraping methods failed:', { playwrightError, simpleError })
