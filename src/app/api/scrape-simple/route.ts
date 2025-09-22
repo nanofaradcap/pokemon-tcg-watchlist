@@ -41,23 +41,47 @@ export async function POST(req: NextRequest) {
     
     const html = await response.text()
     
-    // Basic regex extraction
+    // Enhanced regex extraction for better data
     const nameMatch = html.match(/<title[^>]*>([^<]+)/i)
     const priceMatch = html.match(/\$(\d+\.?\d*)/)
     
-    // Extract name from title
+    // Try to extract card name from various sources
     let name = 'Unknown Card'
     if (nameMatch) {
-      name = nameMatch[1]
+      const title = nameMatch[1]
         .replace(' - TCGplayer', '')
         .replace(' | TCGplayer', '')
+        .replace('Your Trusted Marketplace for Collectible Trading Card Games', '')
         .trim()
+      
+      // If we got the generic title, try to extract from URL or other sources
+      if (title.includes('Trusted Marketplace') || title.length < 10) {
+        // Extract from URL path
+        const urlMatch = url.match(/pokemon-[^/]+-([^/]+)/)
+        if (urlMatch) {
+          name = urlMatch[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+        } else {
+          name = `Card ${productId}`
+        }
+      } else {
+        name = title
+      }
     }
     
-    // Extract price
+    // Extract price with better patterns
     let marketPrice: number | undefined
-    if (priceMatch) {
-      marketPrice = Number(priceMatch[1])
+    const pricePatterns = [
+      /\$(\d+\.?\d*)/,
+      /price[^>]*>.*?\$(\d+\.?\d*)/i,
+      /market[^>]*>.*?\$(\d+\.?\d*)/i
+    ]
+    
+    for (const pattern of pricePatterns) {
+      const match = html.match(pattern)
+      if (match) {
+        marketPrice = Number(match[1])
+        break
+      }
     }
     
     const result = {

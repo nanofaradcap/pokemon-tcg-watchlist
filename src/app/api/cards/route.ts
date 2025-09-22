@@ -79,24 +79,61 @@ export async function POST(req: NextRequest) {
     const { url, profile: profileInput } = AddCardSchema.parse(body)
     const profile: Profile = profileInput || 'Chen'
 
-    // First, scrape the product data
-    const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape-simple`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    })
+    // First, try to scrape the product data with fallback strategy
+    let scrapedData: any
+    let scrapeError: string | null = null
 
-    if (!scrapeResponse.ok) {
-      const errorData = await scrapeResponse.json()
-      return NextResponse.json(
-        { error: 'Failed to scrape product data', details: errorData },
-        { status: scrapeResponse.status }
-      )
+    try {
+      // Try Playwright scraping first (works in development, may fail in production)
+      const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      })
+
+      if (scrapeResponse.ok) {
+        scrapedData = await scrapeResponse.json()
+      } else {
+        const errorData = await scrapeResponse.json()
+        scrapeError = errorData.error || 'Playwright scraping failed'
+        throw new Error(scrapeError)
+      }
+    } catch (playwrightError) {
+      console.warn('Playwright scraping failed, trying simple fallback:', playwrightError)
+      
+      // Fallback to simple scraping
+      try {
+        const simpleResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape-simple`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url }),
+        })
+
+        if (!simpleResponse.ok) {
+          const errorData = await simpleResponse.json()
+          throw new Error(errorData.error || 'Simple scraping failed')
+        }
+
+        scrapedData = await simpleResponse.json()
+        console.log('Simple scraping succeeded as fallback')
+      } catch (simpleError) {
+        console.error('Both scraping methods failed:', { playwrightError, simpleError })
+        return NextResponse.json(
+          { 
+            error: 'Failed to scrape product data', 
+            details: {
+              playwrightError: playwrightError instanceof Error ? playwrightError.message : 'Unknown error',
+              simpleError: simpleError instanceof Error ? simpleError.message : 'Unknown error'
+            }
+          },
+          { status: 500 }
+        )
+      }
     }
-
-    const scrapedData = await scrapeResponse.json()
 
     // Ensure profile row exists
     let profileRow = await prisma.profile.findUnique({ where: { name: profile } })
