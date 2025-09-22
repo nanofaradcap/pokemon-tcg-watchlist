@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     const profile: Profile = profileInput || 'Chen'
 
     // First, try to scrape the product data with fallback strategy
-    let scrapedData: any
+    let scrapedData: Record<string, unknown>
     let scrapeError: string | null = null
 
     try {

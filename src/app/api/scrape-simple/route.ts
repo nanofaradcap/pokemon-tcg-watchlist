@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
     
     // Enhanced regex extraction for better data
     const nameMatch = html.match(/<title[^>]*>([^<]+)/i)
-    const priceMatch = html.match(/\$(\d+\.?\d*)/)
     
     // Try to extract card name from various sources
     let name = 'Unknown Card'
