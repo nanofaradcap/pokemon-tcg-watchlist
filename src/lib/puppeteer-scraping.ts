@@ -1,4 +1,4 @@
-import puppeteer, { Browser } from 'puppeteer-core'
+import puppeteer, { Browser } from 'puppeteer'
 
 export interface ScrapedData {
   url: string
@@ -15,8 +15,12 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
   let browser: Browser | null = null
   
   try {
-    // Use Chromium from the system or Vercel's built-in browser
-    browser = await puppeteer.launch({
+    // Configure Puppeteer for Vercel
+    const launchOptions: {
+      headless: boolean
+      args: string[]
+      executablePath?: string
+    } = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -28,10 +32,19 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         '--disable-gpu',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor',
-        '--single-process'
-      ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
-    })
+        '--single-process',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
+      ]
+    }
+
+    // For Vercel, use the built-in Chrome
+    if (process.env.VERCEL) {
+      launchOptions.executablePath = '/opt/chrome/chrome'
+    }
+
+    browser = await puppeteer.launch(launchOptions)
 
     const page = await browser.newPage()
     
