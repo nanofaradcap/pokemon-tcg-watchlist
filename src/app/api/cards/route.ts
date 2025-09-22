@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { scrapeWithPlaywright, type ScrapedData } from '@/lib/scraping'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 type Profile = typeof Profiles[number]
@@ -79,69 +80,34 @@ export async function POST(req: NextRequest) {
     const { url, profile: profileInput } = AddCardSchema.parse(body)
     const profile: Profile = profileInput || 'Chen'
 
-    // First, try to scrape the product data with fallback strategy
-    let scrapedData: {
-      url: string
-      productId: string
-      name: string
-      setDisplay?: string
-      jpNo?: string
-      rarity?: string
-      imageUrl?: string
-      marketPrice?: number
+    // Extract productId from URL
+    const productIdMatch = url.match(/\/product\/(\d+)\//)
+    if (!productIdMatch) {
+      return NextResponse.json(
+        { error: 'Invalid TCGplayer URL format' },
+        { status: 400 }
+      )
     }
-    let scrapeError: string | null = null
+    const productId = productIdMatch[1]
+
+    // Scrape the product data using Playwright
+    let scrapedData: ScrapedData
 
     try {
-      // Try Playwright scraping first (works in development, may fail in production)
-      const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      })
-
-      if (scrapeResponse.ok) {
-        scrapedData = await scrapeResponse.json() as typeof scrapedData
-      } else {
-        const errorData = await scrapeResponse.json()
-        scrapeError = errorData.error || 'Playwright scraping failed'
-        throw new Error(scrapeError || 'Playwright scraping failed')
-      }
+      scrapedData = await scrapeWithPlaywright(url, productId)
+      console.log('Playwright scraping succeeded')
     } catch (playwrightError) {
-      console.warn('Playwright scraping failed, trying simple fallback:', playwrightError)
-      
-      // Fallback to simple scraping
-      try {
-        const simpleResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape-simple`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url }),
-        })
-
-        if (!simpleResponse.ok) {
-          const errorData = await simpleResponse.json()
-          throw new Error(errorData.error || 'Simple scraping failed')
-        }
-
-        scrapedData = await simpleResponse.json() as typeof scrapedData
-        console.log('Simple scraping succeeded as fallback')
-      } catch (simpleError) {
-        console.error('Both scraping methods failed:', { playwrightError, simpleError })
-        return NextResponse.json(
-          { 
-            error: 'Failed to scrape product data', 
-            details: {
-              playwrightError: playwrightError instanceof Error ? playwrightError.message : 'Unknown error',
-              simpleError: simpleError instanceof Error ? simpleError.message : 'Unknown error'
-            }
-          },
-          { status: 500 }
-        )
-      }
+      console.error('Playwright scraping failed:', playwrightError)
+      return NextResponse.json(
+        { 
+          error: 'Failed to scrape product data. This may be due to server limitations in production. Please try again later.', 
+          details: {
+            error: playwrightError instanceof Error ? playwrightError.message : 'Unknown error',
+            suggestion: 'If this persists, the TCGplayer page may be temporarily unavailable or the URL may be invalid.'
+          }
+        },
+        { status: 500 }
+      )
     }
 
     // Ensure profile row exists

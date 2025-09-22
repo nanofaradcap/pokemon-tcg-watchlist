@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { scrapeWithPlaywright } from '@/lib/scraping'
 
 const RefreshSchema = z.object({
   id: z.string().optional(),
@@ -48,20 +49,15 @@ export async function POST(req: NextRequest) {
           const delay = Math.random() * 500 + 300 // 300-800ms
           await new Promise(resolve => setTimeout(resolve, delay))
 
-          // Scrape the product data
-          const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape-simple`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ url: link.card.url }),
-          })
-
-          if (!scrapeResponse.ok) {
-            throw new Error(`Scraping failed: ${scrapeResponse.status}`)
+          // Extract productId from URL
+          const productIdMatch = link.card.url.match(/\/product\/(\d+)\//)
+          if (!productIdMatch) {
+            throw new Error('Invalid TCGplayer URL format')
           }
+          const productId = productIdMatch[1]
 
-          const scrapedData = await scrapeResponse.json()
+          // Scrape the product data using Playwright
+          const scrapedData = await scrapeWithPlaywright(link.card.url, productId)
 
           // Update the card
           const updatedCard = await prisma.card.update({
