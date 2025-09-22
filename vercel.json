@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npx prisma generate && npm run build",
+  "devCommand": "npx prisma generate && npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "functions": {
+    "src/app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "DATABASE_URL": "@database_url"
+  }
+}

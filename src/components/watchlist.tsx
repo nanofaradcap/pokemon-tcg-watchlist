@@ -1,0 +1,465 @@
+'use client'
+
+import { useEffect, useState, useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { RefreshCw, Plus, Download, MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react'
+import Image from 'next/image'
+
+interface CardRow {
+  id: string
+  url: string
+  productId: string
+  name: string
+  setDisplay?: string
+  jpNo?: string
+  rarity?: string
+  imageUrl?: string
+  marketPrice?: number
+  currency: string
+  lastCheckedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export function Watchlist() {
+  const [url, setUrl] = useState('')
+  const [isAdding, setIsAdding] = useState(false)
+  const [viewMode, setViewMode] = useState<'compact' | 'expanded'>('compact')
+  const [sortKey, setSortKey] = useState<'name' | 'marketPrice' | 'jpNo'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const profiles = useMemo(() => ['Chen', 'Tiff', 'Pho', 'Ying'] as const, [])
+  const [profile, setProfile] = useState<typeof profiles[number]>('Chen')
+  const queryClient = useQueryClient()
+
+  // Persist view mode
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:viewMode') : null
+    if (saved === 'compact' || saved === 'expanded') setViewMode(saved)
+    const savedProfile = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:profile') : null
+    if (savedProfile && profiles.includes(savedProfile as typeof profiles[number])) setProfile(savedProfile as typeof profiles[number])
+
+    const onProfileChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail && profiles.includes(detail as typeof profiles[number])) {
+        setProfile(detail as typeof profiles[number])
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('watchlist:profile-change', onProfileChange as EventListener)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('watchlist:profile-change', onProfileChange as EventListener)
+      }
+    }
+  }, [profiles])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('watchlist:viewMode', viewMode)
+    }
+  }, [viewMode])
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('watchlist:profile', profile)
+    }
+  }, [profile])
+
+  // Fetch cards
+  const { data: cards = [], isLoading } = useQuery<CardRow[]>({
+    queryKey: ['cards', profile],
+    queryFn: async () => {
+      const response = await fetch(`/api/cards?profile=${encodeURIComponent(profile)}`)
+      if (!response.ok) throw new Error('Failed to fetch cards')
+      return response.json()
+    },
+  })
+
+  // Add card mutation
+  const addCardMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const response = await fetch('/api/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, profile }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to add card')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
+      setUrl('')
+      toast.success('Card added successfully')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Refresh single card mutation
+  const refreshCardMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch('/api/cards/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to refresh card')
+      }
+      return response.json()
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
+      if (data.summary.failed > 0) {
+        toast.warning(`Refreshed with ${data.summary.failed} failures`)
+      } else {
+        toast.success('Card refreshed successfully')
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Refresh all cards mutation
+  const refreshAllMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/cards/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: cards.map(card => card.id) }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to refresh cards')
+      }
+      return response.json()
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
+      toast.success(`Refreshed ${data.summary.successful} cards successfully`)
+      if (data.summary.failed > 0) {
+        toast.warning(`${data.summary.failed} cards failed to refresh`)
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Delete card mutation
+  const deleteCardMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/cards?id=${id}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete card')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
+      toast.success('Card deleted successfully')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const handleAddCard = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!url.trim()) return
+
+    setIsAdding(true)
+    try {
+      await addCardMutation.mutateAsync(url)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleRefreshCard = (id: string) => {
+    refreshCardMutation.mutate(id)
+  }
+
+  const handleRefreshAll = () => {
+    if (cards.length === 0) return
+    refreshAllMutation.mutate()
+  }
+
+  const handleDeleteCard = (id: string) => {
+    if (confirm('Are you sure you want to delete this card?')) {
+      deleteCardMutation.mutate(id)
+    }
+  }
+
+  const handleExportCSV = () => {
+    window.open('/api/export', '_blank')
+  }
+
+  const formatPrice = (price?: number) => {
+    if (price === null || price === undefined) return '—'
+    return `$${price.toFixed(2)}`
+  }
+
+  const getImageUrl = (card: CardRow) => {
+    return card.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${card.productId}_in_1000x1000.jpg`
+  }
+
+  const sortedCards = (() => {
+    const copy = [...cards]
+    copy.sort((a, b) => {
+      const direction = sortDir === 'asc' ? 1 : -1
+      const nullsLast = (v: unknown) => (v === null || v === undefined || v === '')
+      switch (sortKey) {
+        case 'name': {
+          const av = a.name || ''
+          const bv = b.name || ''
+          return av.localeCompare(bv) * direction
+        }
+        case 'marketPrice': {
+          const av = a.marketPrice
+          const bv = b.marketPrice
+          if (nullsLast(av) && nullsLast(bv)) return 0
+          if (nullsLast(av)) return 1
+          if (nullsLast(bv)) return -1
+          return (((av as number) - (bv as number)) || 0) * direction
+        }
+        case 'jpNo': {
+          const av = a.jpNo || ''
+          const bv = b.jpNo || ''
+          // Try numeric compare by the first number before '/'
+          const anum = parseInt(av.split('/')[0] || '0', 10)
+          const bnum = parseInt(bv.split('/')[0] || '0', 10)
+          if (!Number.isNaN(anum) && !Number.isNaN(bnum) && (anum !== bnum)) {
+            return (anum - bnum) * direction
+          }
+          return av.localeCompare(bv) * direction
+        }
+        default:
+          return 0
+      }
+    })
+    return copy
+  })()
+
+  const toggleSort = (key: 'name' | 'marketPrice' | 'jpNo') => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Add Card Form */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        {/* Profile pills moved to page header */}
+
+        <form onSubmit={handleAddCard} className="flex-1 flex gap-2">
+          <Input
+            type="url"
+            placeholder="Paste TCGplayer product URL here..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            className="flex-1"
+            disabled={isAdding}
+          />
+          <Button type="submit" disabled={isAdding || !url.trim()}>
+            {isAdding ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Add Card
+          </Button>
+        </form>
+        
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefreshAll}
+            disabled={refreshAllMutation.isPending || cards.length === 0}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshAllMutation.isPending ? 'animate-spin' : ''}`} />
+            Refresh All
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportCSV}
+            disabled={cards.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setViewMode(viewMode === 'compact' ? 'expanded' : 'compact')}
+            aria-pressed={viewMode === 'expanded'}
+            title={viewMode === 'expanded' ? 'Switch to compact' : 'Switch to expanded'}
+          >
+            {viewMode === 'expanded' ? 'Compact' : 'Expanded'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Cards Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-20">Image</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1"
+                  onClick={() => toggleSort('name')}
+                >
+                  Card
+                  {sortKey === 'name' ? (
+                    <span aria-hidden>{sortDir === 'asc' ? '▲' : '▼'}</span>
+                  ) : null}
+                </button>
+              </TableHead>
+              <TableHead className="w-24">
+                <button
+                  type="button"
+                  className="flex items-center gap-1"
+                  onClick={() => toggleSort('marketPrice')}
+                >
+                  Price
+                  {sortKey === 'marketPrice' ? (
+                    <span aria-hidden>{sortDir === 'asc' ? '▲' : '▼'}</span>
+                  ) : null}
+                </button>
+              </TableHead>
+              <TableHead className="w-20">
+                <button
+                  type="button"
+                  className="flex items-center gap-1"
+                  onClick={() => toggleSort('jpNo')}
+                >
+                  No.
+                  {sortKey === 'jpNo' ? (
+                    <span aria-hidden>{sortDir === 'asc' ? '▲' : '▼'}</span>
+                  ) : null}
+                </button>
+              </TableHead>
+              <TableHead className="w-20">Link</TableHead>
+              <TableHead className="w-16">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
+                  <p className="mt-2 text-muted-foreground">Loading cards...</p>
+                </TableCell>
+              </TableRow>
+            ) : cards.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <p className="text-muted-foreground">No cards in your watchlist yet.</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Add a TCGplayer URL above to get started.
+                  </p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              sortedCards.map((card) => (
+                <TableRow key={card.id}>
+                  <TableCell>
+                    <div
+                      className={
+                        viewMode === 'expanded'
+                          ? 'w-80 h-80 relative rounded-md overflow-hidden bg-muted'
+                          : 'w-16 h-16 relative rounded-md overflow-hidden bg-muted'
+                      }
+                    >
+                      <Image
+                        src={getImageUrl(card)}
+                        alt={card.name}
+                        fill
+                        className={viewMode === 'expanded' ? 'object-contain' : 'object-cover'}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                        }}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{card.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {card.lastCheckedAt && (
+                        <span>
+                          Last checked: {new Date(card.lastCheckedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {formatPrice(card.marketPrice)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {card.jpNo || '—'}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.open(card.url, '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleRefreshCard(card.id)}
+                          disabled={refreshCardMutation.isPending}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Refresh
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteCard(card.id)}
+                          disabled={deleteCardMutation.isPending}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
