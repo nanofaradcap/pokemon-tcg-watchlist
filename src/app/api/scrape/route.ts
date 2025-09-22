@@ -71,14 +71,48 @@ export async function POST(req: NextRequest) {
     }
     const productId = productIdMatch[1]
 
-    const browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'] as string[]
-    })
-
-    let result: Record<string, unknown> = {}
-    
+    // Try Playwright first, fallback to basic scraping if it fails
     try {
+      return await scrapeWithPlaywright(url, productId)
+    } catch (playwrightError) {
+      console.warn('Playwright failed, trying fallback method:', playwrightError)
+      return await scrapeWithFallback(url, productId)
+    }
+  } catch (error) {
+    console.error('Scraping error:', error)
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.issues },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to scrape product data' },
+      { status: 500 }
+    )
+  }
+}
+
+async function scrapeWithPlaywright(url: string, productId: string) {
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu'
+    ]
+  })
+
+  let result: Record<string, unknown> = {}
+  
+  try {
       const page = await browser.newPage({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
       })

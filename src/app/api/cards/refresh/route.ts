@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
           await new Promise(resolve => setTimeout(resolve, delay))
 
           // Scrape the product data
-          const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape`, {
+          const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/scrape-simple`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
