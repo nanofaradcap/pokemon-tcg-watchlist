@@ -1,51 +1,44 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Profile {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id        String        @id @default(cuid())
+  name      String        @unique
+  createdAt DateTime      @default(now())
   cards     ProfileCard[]
 }
 
 model Card {
-  id             String   @id @default(cuid())
-  url            String   @unique
-  // Deprecated: will be removed after backfill to ProfileCard
-  profile        String?  @default("Chen")
-  productId      String   // number from URL path, e.g., "566922"
-  name           String
-  setDisplay     String?  // "JP (SV3a) Raging Surf / Paradox Rift"
-  jpNo           String?  // e.g., "064/062"
-  rarity         String?  // e.g., "Art Rare"
-  imageUrl       String?  // e.g., product-images.tcgplayer.com/fit-in/437x437/<productId>.jpg
-  marketPrice    Float?   // numeric, unformatted (TCGplayer market price)
-  currency       String   @default("USD")
-  // PriceCharting prices
-  ungradedPrice  Float?   // PriceCharting ungraded price
-  grade7Price    Float?   // PriceCharting grade 7 price
-  grade8Price    Float?   // PriceCharting grade 8 price
-  grade9Price    Float?   // PriceCharting grade 9 price
-  grade95Price   Float?   // PriceCharting grade 9.5 price
-  grade10Price   Float?   // PriceCharting grade 10 price
-  lastCheckedAt  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  // Merging fields
-  mergedWith     String?  // ID of the card this is merged with
-  isMerged       Boolean  @default(false) // Whether this card is part of a merge
-  mergeGroupId   String?  // Group ID for merged cards (same for all cards in a merge group)
-
-  profileLinks   ProfileCard[]
+  id            String        @id @default(cuid())
+  url           String        @unique
+  profile       String?       @default("Chen")
+  productId     String
+  name          String
+  setDisplay    String?
+  jpNo          String?
+  rarity        String?
+  imageUrl      String?
+  marketPrice   Float?
+  currency      String        @default("USD")
+  lastCheckedAt DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  grade10Price  Float?
+  grade7Price   Float?
+  grade8Price   Float?
+  grade95Price  Float?
+  grade9Price   Float?
+  ungradedPrice Float?
+  mergedWith    String?
+  isMerged      Boolean       @default(false)
+  mergeGroupId  String?
+  profileLinks  ProfileCard[]
 }
 
 model ProfileCard {
@@ -56,9 +49,8 @@ model ProfileCard {
   jpNo       String?
   rarity     String?
   createdAt  DateTime @default(now())
-
-  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, cardId])
 }
