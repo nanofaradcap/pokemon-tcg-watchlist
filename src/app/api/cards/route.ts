@@ -49,31 +49,117 @@ export async function GET(req: NextRequest) {
       include: { card: true },
     })
 
-    // Convert ProfileCard rows to card data
-    const result = rows.map(r => ({
-      id: r.id,
-      url: r.card.url,
-      productId: r.card.productId,
-      name: r.card.name,
-      setDisplay: r.setDisplay ?? r.card.setDisplay ?? undefined,
-      jpNo: r.jpNo ?? r.card.jpNo ?? undefined,
-      rarity: r.rarity ?? r.card.rarity ?? undefined,
-      imageUrl: r.card.imageUrl ?? undefined,
-      marketPrice: r.card.marketPrice ?? undefined,
-      currency: r.card.currency,
-      ungradedPrice: r.card.ungradedPrice ?? undefined,
-      grade7Price: r.card.grade7Price ?? undefined,
-      grade8Price: r.card.grade8Price ?? undefined,
-      grade9Price: r.card.grade9Price ?? undefined,
-      grade95Price: r.card.grade95Price ?? undefined,
-      grade10Price: r.card.grade10Price ?? undefined,
-      lastCheckedAt: r.card.lastCheckedAt,
-      createdAt: r.createdAt,
-      updatedAt: r.card.updatedAt,
-      isMerged: r.card.isMerged,
-      mergedUrls: [r.card.url],
-      mergedSources: [r.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'],
-    }))
+    // Group cards by merge group and consolidate
+    const cardGroups = new Map<string, typeof rows>()
+    const singleCards: typeof rows = []
+
+    // Group cards by mergeGroupId or keep singles separate
+    for (const row of rows) {
+      if (row.card.isMerged && row.card.mergeGroupId) {
+        if (!cardGroups.has(row.card.mergeGroupId)) {
+          cardGroups.set(row.card.mergeGroupId, [])
+        }
+        cardGroups.get(row.card.mergeGroupId)!.push(row)
+      } else {
+        singleCards.push(row)
+      }
+    }
+
+    const result = []
+
+    // Process single (non-merged) cards
+    for (const r of singleCards) {
+      result.push({
+        id: r.id,
+        url: r.card.url,
+        productId: r.card.productId,
+        name: r.card.name,
+        setDisplay: r.setDisplay ?? r.card.setDisplay ?? undefined,
+        jpNo: r.jpNo ?? r.card.jpNo ?? undefined,
+        rarity: r.rarity ?? r.card.rarity ?? undefined,
+        imageUrl: r.card.imageUrl ?? undefined,
+        marketPrice: r.card.marketPrice ?? undefined,
+        currency: r.card.currency,
+        ungradedPrice: r.card.ungradedPrice ?? undefined,
+        grade7Price: r.card.grade7Price ?? undefined,
+        grade8Price: r.card.grade8Price ?? undefined,
+        grade9Price: r.card.grade9Price ?? undefined,
+        grade95Price: r.card.grade95Price ?? undefined,
+        grade10Price: r.card.grade10Price ?? undefined,
+        lastCheckedAt: r.card.lastCheckedAt,
+        createdAt: r.createdAt,
+        updatedAt: r.card.updatedAt,
+        isMerged: false,
+        mergedUrls: [r.card.url],
+        mergedSources: [r.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'],
+      })
+    }
+
+    // Process merged card groups
+    for (const [mergeGroupId, groupRows] of cardGroups) {
+      if (groupRows.length === 0) continue
+
+      // Find the primary card (usually the first one or the one without mergedWith)
+      const primaryRow = groupRows.find(r => !r.card.mergedWith) || groupRows[0]
+      
+      // Collect all URLs and sources from the group
+      const mergedUrls: string[] = []
+      const mergedSources: string[] = []
+      
+      // Consolidate pricing data from all cards in the group
+      let consolidatedData = {
+        marketPrice: null as number | null,
+        ungradedPrice: null as number | null,
+        grade7Price: null as number | null,
+        grade8Price: null as number | null,
+        grade9Price: null as number | null,
+        grade95Price: null as number | null,
+        grade10Price: null as number | null,
+        imageUrl: null as string | null,
+        lastCheckedAt: null as string | null,
+      }
+
+      for (const row of groupRows) {
+        mergedUrls.push(row.card.url)
+        mergedSources.push(row.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting')
+        
+        // Merge pricing data, prioritizing non-null values
+        consolidatedData.marketPrice = consolidatedData.marketPrice ?? row.card.marketPrice
+        consolidatedData.ungradedPrice = consolidatedData.ungradedPrice ?? row.card.ungradedPrice
+        consolidatedData.grade7Price = consolidatedData.grade7Price ?? row.card.grade7Price
+        consolidatedData.grade8Price = consolidatedData.grade8Price ?? row.card.grade8Price
+        consolidatedData.grade9Price = consolidatedData.grade9Price ?? row.card.grade9Price
+        consolidatedData.grade95Price = consolidatedData.grade95Price ?? row.card.grade95Price
+        consolidatedData.grade10Price = consolidatedData.grade10Price ?? row.card.grade10Price
+        consolidatedData.imageUrl = consolidatedData.imageUrl ?? row.card.imageUrl
+        consolidatedData.lastCheckedAt = consolidatedData.lastCheckedAt ?? row.card.lastCheckedAt
+      }
+
+      result.push({
+        id: primaryRow.id,
+        url: primaryRow.card.url, // Use primary card's URL
+        productId: primaryRow.card.productId,
+        name: primaryRow.card.name,
+        setDisplay: primaryRow.setDisplay ?? primaryRow.card.setDisplay ?? undefined,
+        jpNo: primaryRow.jpNo ?? primaryRow.card.jpNo ?? undefined,
+        rarity: primaryRow.rarity ?? primaryRow.card.rarity ?? undefined,
+        imageUrl: consolidatedData.imageUrl ?? undefined,
+        marketPrice: consolidatedData.marketPrice ?? undefined,
+        currency: primaryRow.card.currency,
+        ungradedPrice: consolidatedData.ungradedPrice ?? undefined,
+        grade7Price: consolidatedData.grade7Price ?? undefined,
+        grade8Price: consolidatedData.grade8Price ?? undefined,
+        grade9Price: consolidatedData.grade9Price ?? undefined,
+        grade95Price: consolidatedData.grade95Price ?? undefined,
+        grade10Price: consolidatedData.grade10Price ?? undefined,
+        lastCheckedAt: consolidatedData.lastCheckedAt,
+        createdAt: primaryRow.createdAt,
+        updatedAt: primaryRow.card.updatedAt,
+        isMerged: true,
+        mergedUrls: mergedUrls,
+        mergedSources: [...new Set(mergedSources)], // Remove duplicates
+      })
+    }
 
     return NextResponse.json(result)
   } catch (error) {
