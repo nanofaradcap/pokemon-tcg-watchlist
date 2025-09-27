@@ -13,7 +13,7 @@ const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Ra
 type Profile = typeof Profiles[number]
 
 const AddCardSchema = z.object({
-  url: z.string().url(),
+  url: z.string().url().max(2048, 'URL too long'), // Max 2KB URL length
   profile: z.enum(Profiles as unknown as [Profile, ...Profile[]]).optional(),
 })
 
