@@ -9,7 +9,7 @@ import { scrapeWithFallback } from '@/lib/scraping-fallback'
 import { scrapePriceCharting, type PriceChartingData } from '@/lib/pricecharting-scraping'
 import { findMatchingCards, mergeCardWithExisting, getMergedCardData } from '@/lib/card-merging'
 
-const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
+const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne'] as const
 type Profile = typeof Profiles[number]
 
 const AddCardSchema = z.object({

@@ -352,21 +352,20 @@ export function Watchlist() {
               <TableHead className="w-20 text-center">Ungraded</TableHead>
               <TableHead className="w-20 text-center">Grade 9</TableHead>
               <TableHead className="w-20 text-center">Grade 10</TableHead>
-              <TableHead className="w-20">Link</TableHead>
               <TableHead className="w-16">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
                   <p className="mt-2 text-muted-foreground">Loading cards...</p>
                 </TableCell>
               </TableRow>
             ) : cards.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <p className="text-muted-foreground">No cards in your watchlist yet.</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Add a TCGplayer or PriceCharting URL above to get started.
@@ -398,45 +397,43 @@ export function Watchlist() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
-                      {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-blue-600 dark:text-blue-400">{card.name}</span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                <ExternalLink className="h-3 w-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                              {card.mergedUrls?.map((url, index) => {
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-600 dark:text-blue-400">{card.name}</span>
+                        <div className="relative group">
+                          <button className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground rounded flex items-center justify-center transition-colors">
+                            <ExternalLink className="h-3 w-3" />
+                          </button>
+                          <div className="absolute left-0 top-full mt-1 bg-background border border-border rounded-md shadow-lg z-50 min-w-[120px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                            {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
+                              card.mergedUrls.map((url, index) => {
                                 const source = url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
                                 return (
-                                  <DropdownMenuItem key={index} asChild>
-                                    <a
-                                      href={url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-2"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      {source}
-                                    </a>
-                                  </DropdownMenuItem>
+                                  <a
+                                    key={index}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2 first:rounded-t-md last:rounded-b-md"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    {source}
+                                  </a>
                                 )
-                              })}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              })
+                            ) : (
+                              <a
+                                href={card.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2 rounded-md"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                {card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'}
+                              </a>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <a
-                          href={card.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          {card.name}
-                        </a>
-                      )}
+                      </div>
                     </div>
                     {card.isMerged && card.mergedSources && (
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
@@ -462,15 +459,6 @@ export function Watchlist() {
                   </TableCell>
                   <TableCell className="font-mono text-center">
                     {formatPrice(card.grade10Price)}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => window.open(card.url, '_blank')}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

@@ -3,18 +3,22 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
-const profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
-type Profile = typeof profiles[number]
+const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 
-export function ProfilePills() {
-  const [profile, setProfile] = useState<Profile>('Chen')
+interface ProfilePillsProps {
+  profiles?: readonly string[]
+}
+
+export function ProfilePills({ profiles = defaultProfiles }: ProfilePillsProps) {
+  const [profile, setProfile] = useState<string>(profiles[0])
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:profile') : null
-    if (saved && profiles.includes(saved as Profile)) setProfile(saved as Profile)
-  }, [])
+    if (saved && profiles.includes(saved)) setProfile(saved)
+    else setProfile(profiles[0]) // Default to first profile if saved one doesn't exist
+  }, [profiles])
 
-  const handleSelect = (p: Profile) => {
+  const handleSelect = (p: string) => {
     setProfile(p)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('watchlist:profile', p)
@@ -29,7 +33,7 @@ export function ProfilePills() {
           key={p}
           type="button"
           variant={p === profile ? 'default' : 'outline'}
-          onClick={() => handleSelect(p as Profile)}
+          onClick={() => handleSelect(p)}
           className={p === profile ? '' : 'bg-background dark:bg-input/30'}
           aria-pressed={p === profile}
         >
