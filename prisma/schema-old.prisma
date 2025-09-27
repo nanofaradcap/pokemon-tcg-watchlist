@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  createdAt DateTime      @default(now())
+  cards     ProfileCard[]
+}
+
+model Card {
+  id            String        @id @default(cuid())
+  url           String        @unique
+  profile       String?       @default("Chen")
+  productId     String
+  name          String
+  setDisplay    String?
+  jpNo          String?
+  rarity        String?
+  imageUrl      String?
+  marketPrice   Float?
+  currency      String        @default("USD")
+  lastCheckedAt DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  grade10Price  Float?
+  grade7Price   Float?
+  grade8Price   Float?
+  grade95Price  Float?
+  grade9Price   Float?
+  ungradedPrice Float?
+  mergedWith    String?
+  isMerged      Boolean       @default(false)
+  mergeGroupId  String?
+  profileLinks  ProfileCard[]
+}
+
+model ProfileCard {
+  id         String   @id @default(cuid())
+  profileId  String
+  cardId     String
+  setDisplay String?
+  jpNo       String?
+  rarity     String?
+  createdAt  DateTime @default(now())
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, cardId])
+}

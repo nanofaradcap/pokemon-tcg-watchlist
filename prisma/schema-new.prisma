@@ -51,9 +51,8 @@ model CardSource {
   updatedAt      DateTime  @updatedAt
 
   // Relations
-  card         Card          @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  prices       CardPrice[]
-  priceHistory PriceHistory[]
+  card   Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  prices CardPrice[]
 
   // Constraints
   @@unique([cardId, sourceType])
