@@ -104,6 +104,17 @@ export async function mergeCardWithExisting(
   const primaryCard = existingMatches[0].card
   const mergeGroupId = primaryCard.mergeGroupId || primaryCard.id
 
+  // Create a new card entry for the new card data
+  await prisma.card.create({
+    data: {
+      ...newCardData,
+      isMerged: true,
+      mergedWith: primaryCard.id,
+      mergeGroupId,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any, // Type assertion needed for Prisma compatibility
+  })
+
   // Update the primary card with merged data
   const mergedData = mergeCardData(primaryCard, newCardData)
   const updatedPrimaryCard = await prisma.card.update({
@@ -114,8 +125,6 @@ export async function mergeCardWithExisting(
       mergeGroupId,
     },
   })
-
-  // Note: We don't create a new card when merging - we just update the existing one
 
   // Update any other existing matches to be merged with the primary
   for (const { card } of existingMatches.slice(1)) {
