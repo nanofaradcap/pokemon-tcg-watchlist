@@ -1,8 +1,6 @@
 {
-  "buildCommand": "npx prisma generate && npm run build",
-  "devCommand": "npx prisma generate && npm run dev",
-  "installCommand": "npm install",
   "framework": "nextjs",
+  "buildCommand": "npx prisma generate && npm run build",
   "env": {
     "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
     "CHROMIUM_PACK_URL": "https://github.com/Sparticuz/chromium/releases/download/v138.0.2/chromium-v138.0.2-pack.x64.tar"

@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { scrapeWithPuppeteer, type ScrapedData } from '@/lib/puppeteer-scraping'
 import { scrapeWithFallback } from '@/lib/scraping-fallback'
 import { scrapePriceCharting, type PriceChartingData } from '@/lib/pricecharting-scraping'
-import { findMatchingCards, mergeCardWithExisting, getMergedCardData } from '@/lib/card-merging'
+import { findMatchingCards, mergeCardWithExisting } from '@/lib/card-merging'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne'] as const
 type Profile = typeof Profiles[number]
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Process merged card groups
-    for (const [mergeGroupId, groupRows] of cardGroups) {
+    for (const [, groupRows] of cardGroups) {
       if (groupRows.length === 0) continue
 
       // Find the primary card (usually the first one or the one without mergedWith)
@@ -107,32 +107,30 @@ export async function GET(req: NextRequest) {
       const mergedSources: string[] = []
       
       // Consolidate pricing data from all cards in the group
-      let consolidatedData = {
-        marketPrice: null as number | null,
-        ungradedPrice: null as number | null,
-        grade7Price: null as number | null,
-        grade8Price: null as number | null,
-        grade9Price: null as number | null,
-        grade95Price: null as number | null,
-        grade10Price: null as number | null,
-        imageUrl: null as string | null,
-        lastCheckedAt: null as string | null,
-      }
+      let marketPrice: number | null = null
+      let ungradedPrice: number | null = null
+      let grade7Price: number | null = null
+      let grade8Price: number | null = null
+      let grade9Price: number | null = null
+      let grade95Price: number | null = null
+      let grade10Price: number | null = null
+      let imageUrl: string | null = null
+      let lastCheckedAt: string | null = null
 
       for (const row of groupRows) {
         mergedUrls.push(row.card.url)
         mergedSources.push(row.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting')
         
         // Merge pricing data, prioritizing non-null values
-        consolidatedData.marketPrice = consolidatedData.marketPrice ?? row.card.marketPrice
-        consolidatedData.ungradedPrice = consolidatedData.ungradedPrice ?? row.card.ungradedPrice
-        consolidatedData.grade7Price = consolidatedData.grade7Price ?? row.card.grade7Price
-        consolidatedData.grade8Price = consolidatedData.grade8Price ?? row.card.grade8Price
-        consolidatedData.grade9Price = consolidatedData.grade9Price ?? row.card.grade9Price
-        consolidatedData.grade95Price = consolidatedData.grade95Price ?? row.card.grade95Price
-        consolidatedData.grade10Price = consolidatedData.grade10Price ?? row.card.grade10Price
-        consolidatedData.imageUrl = consolidatedData.imageUrl ?? row.card.imageUrl
-        consolidatedData.lastCheckedAt = consolidatedData.lastCheckedAt ?? row.card.lastCheckedAt
+        marketPrice = marketPrice ?? row.card.marketPrice
+        ungradedPrice = ungradedPrice ?? row.card.ungradedPrice
+        grade7Price = grade7Price ?? row.card.grade7Price
+        grade8Price = grade8Price ?? row.card.grade8Price
+        grade9Price = grade9Price ?? row.card.grade9Price
+        grade95Price = grade95Price ?? row.card.grade95Price
+        grade10Price = grade10Price ?? row.card.grade10Price
+        imageUrl = imageUrl ?? row.card.imageUrl
+        lastCheckedAt = lastCheckedAt ?? (row.card.lastCheckedAt ? row.card.lastCheckedAt.toISOString() : null)
       }
 
       result.push({
@@ -143,16 +141,16 @@ export async function GET(req: NextRequest) {
         setDisplay: primaryRow.setDisplay ?? primaryRow.card.setDisplay ?? undefined,
         jpNo: primaryRow.jpNo ?? primaryRow.card.jpNo ?? undefined,
         rarity: primaryRow.rarity ?? primaryRow.card.rarity ?? undefined,
-        imageUrl: consolidatedData.imageUrl ?? undefined,
-        marketPrice: consolidatedData.marketPrice ?? undefined,
+        imageUrl: imageUrl ?? undefined,
+        marketPrice: marketPrice ?? undefined,
         currency: primaryRow.card.currency,
-        ungradedPrice: consolidatedData.ungradedPrice ?? undefined,
-        grade7Price: consolidatedData.grade7Price ?? undefined,
-        grade8Price: consolidatedData.grade8Price ?? undefined,
-        grade9Price: consolidatedData.grade9Price ?? undefined,
-        grade95Price: consolidatedData.grade95Price ?? undefined,
-        grade10Price: consolidatedData.grade10Price ?? undefined,
-        lastCheckedAt: consolidatedData.lastCheckedAt,
+        ungradedPrice: ungradedPrice ?? undefined,
+        grade7Price: grade7Price ?? undefined,
+        grade8Price: grade8Price ?? undefined,
+        grade9Price: grade9Price ?? undefined,
+        grade95Price: grade95Price ?? undefined,
+        grade10Price: grade10Price ?? undefined,
+        lastCheckedAt: lastCheckedAt,
         createdAt: primaryRow.createdAt,
         updatedAt: primaryRow.card.updatedAt,
         isMerged: true,
