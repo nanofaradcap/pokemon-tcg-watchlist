@@ -129,17 +129,17 @@ export async function scrapePriceCharting(url: string): Promise<PriceChartingDat
             const setLink = nameElement.querySelector('a')
             setDisplay = setLink?.textContent?.trim() || ''
             
-            // Clean up the name - remove card number and set name, keep only the card name
+            // Clean up the name - remove set name from the end, keep card name and number
             // The structure is typically "Card Name #Number Set Name"
-            let cleanName = nameText.replace(/\s*#\d+\s*/, '').trim()
+            let cleanName = nameText.trim()
             
             // Remove the set name from the end if it's there
             if (setDisplay && cleanName.endsWith(setDisplay)) {
               cleanName = cleanName.replace(new RegExp(`\\s*${setDisplay.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '').trim()
             }
             
-            // Add dash between card name and set name
-            name = setDisplay ? `${cleanName} - ${setDisplay}` : cleanName
+            // Format as "Card Name #Number Set Name"
+            name = setDisplay ? `${cleanName} ${setDisplay}` : cleanName
           }
 
           // Extract prices from the price table
