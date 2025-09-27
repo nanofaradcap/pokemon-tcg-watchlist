@@ -239,21 +239,38 @@ export async function unmergeCard(cardId: string): Promise<boolean> {
 
   if (!card || !card.isMerged) return false
 
-  // If this is the primary card, unmerge all cards in the group
-  if (!card.mergedWith) {
-    await prisma.card.updateMany({
-      where: { mergeGroupId: card.mergeGroupId },
-      data: {
-        mergedWith: null,
-        isMerged: false,
-        mergeGroupId: null,
-      },
-    })
-  } else {
-    // If this is a secondary card, just unmerge it
+  // Find all cards in the merge group
+  const mergeGroupCards = await prisma.card.findMany({
+    where: { mergeGroupId: card.mergeGroupId },
+  })
+
+  // Restore each card to its original pricing data based on source
+  for (const groupCard of mergeGroupCards) {
+    const source = getSourceFromUrl(groupCard.url)
+    
+    let pricingData: Partial<Card> = {}
+    
+    if (source === 'TCGplayer') {
+      // TCGplayer cards should only have marketPrice, clear PriceCharting data
+      pricingData = {
+        ungradedPrice: null,
+        grade7Price: null,
+        grade8Price: null,
+        grade9Price: null,
+        grade95Price: null,
+        grade10Price: null,
+      }
+    } else if (source === 'PriceCharting') {
+      // PriceCharting cards should only have graded prices, clear TCGplayer data
+      pricingData = {
+        marketPrice: null,
+      }
+    }
+
     await prisma.card.update({
-      where: { id: cardId },
+      where: { id: groupCard.id },
       data: {
+        ...pricingData,
         mergedWith: null,
         isMerged: false,
         mergeGroupId: null,

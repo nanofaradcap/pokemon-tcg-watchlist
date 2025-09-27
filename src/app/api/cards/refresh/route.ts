@@ -40,14 +40,35 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // For merged cards, we need to refresh all cards in the merge group
+    const allCardsToRefresh = new Set<string>()
+    
+    for (const link of links) {
+      if (link.card.isMerged && link.card.mergeGroupId) {
+        // Find all cards in the merge group
+        const mergeGroupCards = await prisma.card.findMany({
+          where: { mergeGroupId: link.card.mergeGroupId },
+        })
+        mergeGroupCards.forEach(card => allCardsToRefresh.add(card.id))
+      } else {
+        // Single card, just refresh this one
+        allCardsToRefresh.add(link.card.id)
+      }
+    }
+
+    // Get all cards that need refreshing
+    const cardsToRefresh = await prisma.card.findMany({
+      where: { id: { in: Array.from(allCardsToRefresh) } },
+    })
+
     const results = []
     const concurrency = Number(process.env.SCRAPE_CONCURRENCY ?? 2)
     
     // Process cards in batches with concurrency limit
-    for (let i = 0; i < links.length; i += concurrency) {
-      const batch = links.slice(i, i + concurrency)
+    for (let i = 0; i < cardsToRefresh.length; i += concurrency) {
+      const batch = cardsToRefresh.slice(i, i + concurrency)
       
-      const batchPromises = batch.map(async (link) => {
+      const batchPromises = batch.map(async (card) => {
         try {
           // Add small random delay to be respectful
           const delay = Math.random() * 500 + 300 // 300-800ms
@@ -70,23 +91,23 @@ export async function POST(req: NextRequest) {
             lastCheckedAt: Date
           }
 
-          if (link.card.url.includes('tcgplayer.com/product/')) {
+          if (card.url.includes('tcgplayer.com/product/')) {
             // TCGplayer URL
-            const productIdMatch = link.card.url.match(/\/product\/(\d+)\//)
+            const productIdMatch = card.url.match(/\/product\/(\d+)\//)
             if (!productIdMatch) {
               throw new Error('Invalid TCGplayer URL format')
             }
             const productId = productIdMatch[1]
 
             // Scrape the product data using Puppeteer
-            const scrapedData = await scrapeWithPuppeteer(link.card.url, productId)
+            const scrapedData = await scrapeWithPuppeteer(card.url, productId)
             cardData = {
               ...scrapedData,
               lastCheckedAt: new Date(),
             }
-          } else if (link.card.url.includes('pricecharting.com/game/')) {
+          } else if (card.url.includes('pricecharting.com/game/')) {
             // PriceCharting URL
-            const scrapedData = await scrapePriceCharting(link.card.url)
+            const scrapedData = await scrapePriceCharting(card.url)
             cardData = {
               url: scrapedData.url,
               name: scrapedData.name,
@@ -110,23 +131,23 @@ export async function POST(req: NextRequest) {
 
           // Update the card
           const updatedCard = await prisma.card.update({
-            where: { id: link.card.id },
+            where: { id: card.id },
             data: cardData,
           })
 
           return { success: true, card: updatedCard }
         } catch (error) {
-          console.error(`Error refreshing link ${link.id}:`, error)
+          console.error(`Error refreshing card ${card.id}:`, error)
           
           // Update lastCheckedAt even on failure
           await prisma.card.update({
-            where: { id: link.card.id },
+            where: { id: card.id },
             data: { lastCheckedAt: new Date() }
           })
 
           return { 
             success: false, 
-            cardId: link.card.id, 
+            cardId: card.id, 
             error: error instanceof Error ? error.message : 'Unknown error'
           }
         }
