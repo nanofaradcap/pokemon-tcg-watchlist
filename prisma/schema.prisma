@@ -28,8 +28,15 @@ model Card {
   jpNo           String?  // e.g., "064/062"
   rarity         String?  // e.g., "Art Rare"
   imageUrl       String?  // e.g., product-images.tcgplayer.com/fit-in/437x437/<productId>.jpg
-  marketPrice    Float?   // numeric, unformatted
+  marketPrice    Float?   // numeric, unformatted (TCGplayer market price)
   currency       String   @default("USD")
+  // PriceCharting prices
+  ungradedPrice  Float?   // PriceCharting ungraded price
+  grade7Price    Float?   // PriceCharting grade 7 price
+  grade8Price    Float?   // PriceCharting grade 8 price
+  grade9Price    Float?   // PriceCharting grade 9 price
+  grade95Price   Float?   // PriceCharting grade 9.5 price
+  grade10Price   Float?   // PriceCharting grade 10 price
   lastCheckedAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -21,6 +21,13 @@ interface CardRow {
   imageUrl?: string
   marketPrice?: number
   currency: string
+  // PriceCharting prices
+  ungradedPrice?: number
+  grade7Price?: number
+  grade8Price?: number
+  grade9Price?: number
+  grade95Price?: number
+  grade10Price?: number
   lastCheckedAt?: string
   createdAt: string
   updatedAt: string
@@ -273,7 +280,7 @@ export function Watchlist() {
         <form onSubmit={handleAddCard} className="flex-1 flex gap-2">
           <Input
             type="url"
-            placeholder="Paste TCGplayer product URL here..."
+            placeholder="Paste TCGplayer or PriceCharting URL here..."
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             className="flex-1"
@@ -341,12 +348,15 @@ export function Watchlist() {
                   className="flex items-center gap-1"
                   onClick={() => toggleSort('marketPrice')}
                 >
-                  Price
+                  TCG Price
                   {sortKey === 'marketPrice' ? (
                     <span aria-hidden>{sortDir === 'asc' ? '▲' : '▼'}</span>
                   ) : null}
                 </button>
               </TableHead>
+              <TableHead className="w-20 text-center">Ungraded</TableHead>
+              <TableHead className="w-20 text-center">Grade 9</TableHead>
+              <TableHead className="w-20 text-center">Grade 10</TableHead>
               <TableHead className="w-20">
                 <button
                   type="button"
@@ -366,17 +376,17 @@ export function Watchlist() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
                   <p className="mt-2 text-muted-foreground">Loading cards...</p>
                 </TableCell>
               </TableRow>
             ) : cards.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   <p className="text-muted-foreground">No cards in your watchlist yet.</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Add a TCGplayer URL above to get started.
+                    Add a TCGplayer or PriceCharting URL above to get started.
                   </p>
                 </TableCell>
               </TableRow>
@@ -415,6 +425,15 @@ export function Watchlist() {
                   </TableCell>
                   <TableCell className="font-mono">
                     {formatPrice(card.marketPrice)}
+                  </TableCell>
+                  <TableCell className="font-mono text-center">
+                    {formatPrice(card.ungradedPrice)}
+                  </TableCell>
+                  <TableCell className="font-mono text-center">
+                    {formatPrice(card.grade9Price)}
+                  </TableCell>
+                  <TableCell className="font-mono text-center">
+                    {formatPrice(card.grade10Price)}
                   </TableCell>
                   <TableCell className="text-sm">
                     {card.jpNo || '—'}

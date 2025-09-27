@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { scrapeWithPuppeteer, type ScrapedData } from '@/lib/puppeteer-scraping'
 import { scrapeWithFallback } from '@/lib/scraping-fallback'
+import { scrapePriceCharting, type PriceChartingData } from '@/lib/pricecharting-scraping'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 type Profile = typeof Profiles[number]
@@ -59,6 +60,13 @@ export async function GET(req: NextRequest) {
       imageUrl: r.card.imageUrl ?? undefined,
       marketPrice: r.card.marketPrice ?? undefined,
       currency: r.card.currency,
+      // PriceCharting prices
+      ungradedPrice: r.card.ungradedPrice ?? undefined,
+      grade7Price: r.card.grade7Price ?? undefined,
+      grade8Price: r.card.grade8Price ?? undefined,
+      grade9Price: r.card.grade9Price ?? undefined,
+      grade95Price: r.card.grade95Price ?? undefined,
+      grade10Price: r.card.grade10Price ?? undefined,
       lastCheckedAt: r.card.lastCheckedAt,
       createdAt: r.createdAt,
       updatedAt: r.card.updatedAt,
@@ -84,42 +92,129 @@ export async function POST(req: NextRequest) {
     const { url, profile: profileInput } = AddCardSchema.parse(body)
     const profile: Profile = profileInput || 'Chen'
 
-    // Extract productId from URL
-    const productIdMatch = url.match(/\/product\/(\d+)\//)
-    if (!productIdMatch) {
-      return NextResponse.json(
-        { error: 'Invalid TCGplayer URL format' },
-        { status: 400 }
-      )
+    // Determine URL type and extract data accordingly
+    let cardData: {
+      url: string
+      productId: string
+      name: string
+      setDisplay?: string
+      jpNo?: string
+      rarity?: string
+      imageUrl?: string
+      marketPrice?: number
+      currency: string
+      ungradedPrice?: number
+      grade7Price?: number
+      grade8Price?: number
+      grade9Price?: number
+      grade95Price?: number
+      grade10Price?: number
+      lastCheckedAt: Date
     }
-    const productId = productIdMatch[1]
+    let productId: string
 
-    // Scrape the product data using Puppeteer with fallback
-    let scrapedData: ScrapedData
+    if (url.includes('tcgplayer.com/product/')) {
+      // TCGplayer URL
+      const productIdMatch = url.match(/\/product\/(\d+)\//)
+      if (!productIdMatch) {
+        return NextResponse.json(
+          { error: 'Invalid TCGplayer URL format' },
+          { status: 400 }
+        )
+      }
+      productId = productIdMatch[1]
 
-    try {
-      scrapedData = await scrapeWithPuppeteer(url, productId)
-      console.log('Puppeteer scraping succeeded')
-    } catch (puppeteerError) {
-      console.warn('Puppeteer scraping failed, using fallback method:', puppeteerError)
-      
-      // Use fallback method for production
+      // Scrape the product data using Puppeteer with fallback
+      let scrapedData: ScrapedData
+
       try {
-        scrapedData = await scrapeWithFallback(url, productId)
-        console.log('Fallback scraping succeeded')
-      } catch (fallbackError) {
-        console.error('Both scraping methods failed:', { puppeteerError, fallbackError })
+        scrapedData = await scrapeWithPuppeteer(url, productId)
+        console.log('Puppeteer scraping succeeded')
+      } catch (puppeteerError) {
+        console.warn('Puppeteer scraping failed, using fallback method:', puppeteerError)
+        
+        // Use fallback method for production
+        try {
+          scrapedData = await scrapeWithFallback(url, productId)
+          console.log('Fallback scraping succeeded')
+        } catch (fallbackError) {
+          console.error('Both scraping methods failed:', { puppeteerError, fallbackError })
+          return NextResponse.json(
+            { 
+              error: 'Failed to scrape product data', 
+              details: {
+                puppeteerError: puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error',
+                fallbackError: fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
+              }
+            },
+            { status: 500 }
+          )
+        }
+      }
+
+      cardData = {
+        url,
+        productId,
+        name: scrapedData.name,
+        setDisplay: scrapedData.setDisplay,
+        jpNo: scrapedData.jpNo,
+        rarity: scrapedData.rarity,
+        imageUrl: scrapedData.imageUrl,
+        marketPrice: scrapedData.marketPrice,
+        currency: 'USD',
+        lastCheckedAt: new Date(),
+      }
+    } else if (url.includes('pricecharting.com/game/')) {
+      // PriceCharting URL
+      const urlMatch = url.match(/pricecharting\.com\/game\/([^\/]+)\/([^\/]+)/)
+      if (!urlMatch) {
+        return NextResponse.json(
+          { error: 'Invalid PriceCharting URL format' },
+          { status: 400 }
+        )
+      }
+      productId = urlMatch[2] // Use the card name as productId
+
+      // Scrape PriceCharting data
+      let scrapedData: PriceChartingData
+      try {
+        scrapedData = await scrapePriceCharting(url)
+        console.log('PriceCharting scraping succeeded')
+      } catch (pricechartingError) {
+        console.error('PriceCharting scraping failed:', pricechartingError)
         return NextResponse.json(
           { 
-            error: 'Failed to scrape product data', 
-            details: {
-              puppeteerError: puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error',
-              fallbackError: fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
-            }
+            error: 'Failed to scrape PriceCharting data', 
+            details: pricechartingError instanceof Error ? pricechartingError.message : 'Unknown error'
           },
           { status: 500 }
         )
       }
+
+      cardData = {
+        url,
+        productId,
+        name: scrapedData.name,
+        setDisplay: scrapedData.setDisplay,
+        jpNo: scrapedData.cardNumber,
+        rarity: undefined, // PriceCharting doesn't provide rarity
+        imageUrl: scrapedData.imageUrl,
+        marketPrice: undefined, // No TCGplayer market price
+        currency: 'USD',
+        // PriceCharting specific prices
+        ungradedPrice: scrapedData.ungradedPrice,
+        grade7Price: scrapedData.grade7Price,
+        grade8Price: scrapedData.grade8Price,
+        grade9Price: scrapedData.grade9Price,
+        grade95Price: scrapedData.grade95Price,
+        grade10Price: scrapedData.grade10Price,
+        lastCheckedAt: new Date(),
+      }
+    } else {
+      return NextResponse.json(
+        { error: 'Unsupported URL format. Only TCGplayer and PriceCharting URLs are supported.' },
+        { status: 400 }
+      )
     }
 
     // Ensure profile row exists
@@ -129,14 +224,8 @@ export async function POST(req: NextRequest) {
     // Upsert global card by url
     const card = await prisma.card.upsert({
       where: { url },
-      update: {
-        ...scrapedData,
-        lastCheckedAt: new Date(),
-      },
-      create: {
-        ...scrapedData,
-        lastCheckedAt: new Date(),
-      },
+      update: cardData,
+      create: cardData,
     })
 
     // Upsert profile-card link

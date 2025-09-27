@@ -7,11 +7,10 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'tcgplayer-cdn.tcgplayer.com' },
       { protocol: 'https', hostname: 'www.tcgplayer.com' },
       { protocol: 'https', hostname: 'tcgplayer.com' },
+      { protocol: 'https', hostname: 'storage.googleapis.com' },
     ],
   },
-  experimental: {
-    serverComponentsExternalPackages: ['@sparticuz/chromium-min'],
-  },
+  serverExternalPackages: ['@sparticuz/chromium-min'],
   // Production optimizations
   compress: true,
   poweredByHeader: false,
