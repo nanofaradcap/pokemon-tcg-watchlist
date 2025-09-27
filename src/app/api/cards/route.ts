@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { scrapeWithPuppeteer, type ScrapedData } from '@/lib/puppeteer-scraping'
 import { scrapeWithFallback } from '@/lib/scraping-fallback'
 import { scrapePriceCharting, type PriceChartingData } from '@/lib/pricecharting-scraping'
-import { findMatchingCards, mergeCardWithExisting, unmergeCard, getMergedCardData } from '@/lib/card-merging'
+import { findMatchingCards, mergeCardWithExisting, getMergedCardData } from '@/lib/card-merging'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 type Profile = typeof Profiles[number]
@@ -379,12 +379,11 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/cards - Delete a card or unmerge
+// DELETE /api/cards - Delete a card
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
-    const action = searchParams.get('action') // 'delete' or 'unmerge'
     
     if (!id) {
       return NextResponse.json(
@@ -393,25 +392,13 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    if (action === 'unmerge') {
-      // Unmerge the card
-      const success = await unmergeCard(id)
-      if (!success) {
-        return NextResponse.json(
-          { error: 'Card is not merged or does not exist' },
-          { status: 404 }
-        )
-      }
-      return NextResponse.json({ success: true, action: 'unmerged' })
-    } else {
-      // Delete the link only (default behavior)
-      await prisma.profileCard.delete({ where: { id } })
-      return NextResponse.json({ success: true, action: 'deleted' })
-    }
+    // Delete the link only
+    await prisma.profileCard.delete({ where: { id } })
+    return NextResponse.json({ success: true, action: 'deleted' })
   } catch (error) {
-    console.error('Error deleting/unmerging card:', error)
+    console.error('Error deleting card:', error)
     return NextResponse.json(
-      { error: 'Failed to delete/unmerge card' },
+      { error: 'Failed to delete card' },
       { status: 500 }
     )
   }

@@ -189,26 +189,6 @@ export function Watchlist() {
     },
   })
 
-  // Unmerge card mutation
-  const unmergeCardMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/cards?id=${id}&action=unmerge`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to unmerge card')
-      }
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
-      toast.success('Card unmerged successfully')
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
-  })
 
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -241,9 +221,6 @@ export function Watchlist() {
     window.open('/api/export', '_blank')
   }
 
-  const handleUnmergeCard = (id: string) => {
-    unmergeCardMutation.mutate(id)
-  }
 
   const formatPrice = (price?: number) => {
     if (price === null || price === undefined) return '—'
@@ -470,16 +447,6 @@ export function Watchlist() {
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Refresh
                         </DropdownMenuItem>
-                        {card.isMerged && (
-                          <DropdownMenuItem
-                            onClick={() => handleUnmergeCard(card.id)}
-                            disabled={unmergeCardMutation.isPending}
-                            className="text-orange-600 dark:text-orange-400"
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Unmerge
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuItem
                           onClick={() => handleDeleteCard(card.id)}
                           disabled={deleteCardMutation.isPending}

@@ -209,11 +209,40 @@ export async function getMergedCardData(cardId: string): Promise<MergedCardData 
   // Find the primary card (the one that others are merged with)
   const primaryCard = mergeGroupCards.find(c => !c.mergedWith) || card
 
-  return {
+  // Consolidate data from all cards in the merge group
+  let consolidatedData: MergedCardData = {
     ...primaryCard,
-    mergedUrls: mergeGroupCards.map(c => c.url),
-    mergedSources: mergeGroupCards.map(c => getSourceFromUrl(c.url)),
+    mergedUrls: [],
+    mergedSources: [],
   }
+
+  // Merge pricing data from all cards
+  for (const groupCard of mergeGroupCards) {
+    consolidatedData = {
+      ...consolidatedData,
+      // Merge pricing data, prioritizing non-null values
+      marketPrice: consolidatedData.marketPrice ?? groupCard.marketPrice,
+      ungradedPrice: consolidatedData.ungradedPrice ?? groupCard.ungradedPrice,
+      grade7Price: consolidatedData.grade7Price ?? groupCard.grade7Price,
+      grade8Price: consolidatedData.grade8Price ?? groupCard.grade8Price,
+      grade9Price: consolidatedData.grade9Price ?? groupCard.grade9Price,
+      grade95Price: consolidatedData.grade95Price ?? groupCard.grade95Price,
+      grade10Price: consolidatedData.grade10Price ?? groupCard.grade10Price,
+      // Merge other data, prioritizing non-null values
+      setDisplay: consolidatedData.setDisplay ?? groupCard.setDisplay,
+      jpNo: consolidatedData.jpNo ?? groupCard.jpNo,
+      rarity: consolidatedData.rarity ?? groupCard.rarity,
+      imageUrl: consolidatedData.imageUrl ?? groupCard.imageUrl,
+      mergedUrls: [...consolidatedData.mergedUrls, groupCard.url],
+      mergedSources: [...consolidatedData.mergedSources, getSourceFromUrl(groupCard.url)],
+    }
+  }
+
+  // Ensure unique URLs and sources
+  consolidatedData.mergedUrls = Array.from(new Set(consolidatedData.mergedUrls))
+  consolidatedData.mergedSources = Array.from(new Set(consolidatedData.mergedSources))
+
+  return consolidatedData
 }
 
 /**
