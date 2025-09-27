@@ -24,6 +24,21 @@ export function extractTCGplayerMatch(cardName: string): CardMatch | null {
 }
 
 /**
+ * Normalize card name for comparison (remove extra spaces, convert to lowercase)
+ */
+export function normalizeCardName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Check if two cards are the same based on normalized name and number
+ */
+export function areCardsSame(card1: CardMatch, card2: CardMatch): boolean {
+  return normalizeCardName(card1.name) === normalizeCardName(card2.name) && 
+         card1.number === card2.number
+}
+
+/**
  * Extract card name and number from PriceCharting card name
  * Example: "Gardevoir ex #348 Pokemon Japanese Shiny Treasure ex"
  * Returns: { name: "Gardevoir ex", number: "348" }

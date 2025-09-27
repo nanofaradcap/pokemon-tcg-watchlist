@@ -3,7 +3,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { extractCardMatch, cardsMatch, type CardMatch } from '@/lib/card-matching'
+import { extractCardMatch, areCardsSame, type CardMatch } from '@/lib/card-matching'
 
 export interface MergedCardData {
   id: string
@@ -79,7 +79,7 @@ export async function findMatchingCards(
 
   for (const card of allCards) {
     const existingMatch = extractCardMatch(card.name, card.url)
-    if (existingMatch && cardsMatch(newCardMatch, existingMatch)) {
+    if (existingMatch && areCardsSame(newCardMatch, existingMatch)) {
       matches.push({ card, match: existingMatch })
     }
   }

@@ -257,7 +257,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (existingCard) {
-      // Card already exists, just update the profile link
+      // Card already exists, just update the profile link and refresh data
       let profileRow = await prisma.profile.findUnique({ where: { name: profile } })
       if (!profileRow) profileRow = await prisma.profile.create({ data: { name: profile } })
 
@@ -267,7 +267,21 @@ export async function POST(req: NextRequest) {
         create: { profileId: profileRow.id, cardId: existingCard.id },
       })
 
-      return NextResponse.json({ ...existingCard })
+      // Update the card data with latest information
+      const updatedCard = await prisma.card.update({
+        where: { id: existingCard.id },
+        data: {
+          ...cardData,
+          lastCheckedAt: new Date(),
+        },
+      })
+
+      return NextResponse.json({ 
+        ...updatedCard, 
+        wasMerged: existingCard.isMerged,
+        mergedWithCount: 0,
+        message: 'Card already exists, data updated'
+      })
     }
 
     // Find matching cards for merging
