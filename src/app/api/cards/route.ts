@@ -49,12 +49,18 @@ export async function GET(req: NextRequest) {
       include: { card: true },
     })
 
-    // Get merged card data for each card
-    const result = await Promise.all(rows.map(async r => {
+    // Get merged card data for each card and deduplicate merged cards
+    const processedCards = new Set<string>()
+    const result = []
+    
+    for (const r of rows) {
+      // Skip if this card is already processed as part of a merge group
+      if (processedCards.has(r.card.id)) continue
+      
       const mergedData = await getMergedCardData(r.card.id)
       if (!mergedData) {
         // Fallback to original data if merging fails
-        return {
+        result.push({
           id: r.id,
           url: r.card.url,
           productId: r.card.productId,
@@ -77,34 +83,41 @@ export async function GET(req: NextRequest) {
           isMerged: r.card.isMerged,
           mergedUrls: [r.card.url],
           mergedSources: [r.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'],
-        }
+        })
+        processedCards.add(r.card.id)
+      } else {
+        // Add all cards in the merge group to processed set
+        const mergeGroupCards = await prisma.card.findMany({
+          where: { mergeGroupId: mergedData.mergeGroupId },
+        })
+        mergeGroupCards.forEach(card => processedCards.add(card.id))
+        
+        result.push({
+          id: r.id,
+          url: mergedData.url,
+          productId: mergedData.productId,
+          name: mergedData.name,
+          setDisplay: r.setDisplay ?? mergedData.setDisplay ?? undefined,
+          jpNo: r.jpNo ?? mergedData.jpNo ?? undefined,
+          rarity: r.rarity ?? mergedData.rarity ?? undefined,
+          imageUrl: mergedData.imageUrl ?? undefined,
+          marketPrice: mergedData.marketPrice ?? undefined,
+          currency: mergedData.currency,
+          ungradedPrice: mergedData.ungradedPrice ?? undefined,
+          grade7Price: mergedData.grade7Price ?? undefined,
+          grade8Price: mergedData.grade8Price ?? undefined,
+          grade9Price: mergedData.grade9Price ?? undefined,
+          grade95Price: mergedData.grade95Price ?? undefined,
+          grade10Price: mergedData.grade10Price ?? undefined,
+          lastCheckedAt: mergedData.lastCheckedAt,
+          createdAt: r.createdAt,
+          updatedAt: mergedData.updatedAt,
+          isMerged: mergedData.isMerged,
+          mergedUrls: mergedData.mergedUrls,
+          mergedSources: mergedData.mergedSources,
+        })
       }
-
-      return {
-        id: r.id,
-        url: mergedData.url,
-        productId: mergedData.productId,
-        name: mergedData.name,
-        setDisplay: r.setDisplay ?? mergedData.setDisplay ?? undefined,
-        jpNo: r.jpNo ?? mergedData.jpNo ?? undefined,
-        rarity: r.rarity ?? mergedData.rarity ?? undefined,
-        imageUrl: mergedData.imageUrl ?? undefined,
-        marketPrice: mergedData.marketPrice ?? undefined,
-        currency: mergedData.currency,
-        ungradedPrice: mergedData.ungradedPrice ?? undefined,
-        grade7Price: mergedData.grade7Price ?? undefined,
-        grade8Price: mergedData.grade8Price ?? undefined,
-        grade9Price: mergedData.grade9Price ?? undefined,
-        grade95Price: mergedData.grade95Price ?? undefined,
-        grade10Price: mergedData.grade10Price ?? undefined,
-        lastCheckedAt: mergedData.lastCheckedAt,
-        createdAt: r.createdAt,
-        updatedAt: mergedData.updatedAt,
-        isMerged: mergedData.isMerged,
-        mergedUrls: mergedData.mergedUrls,
-        mergedSources: mergedData.mergedSources,
-      }
-    }))
+    }
 
     return NextResponse.json(result)
   } catch (error) {

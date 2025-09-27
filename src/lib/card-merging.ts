@@ -69,11 +69,8 @@ export async function findMatchingCards(
   const newCardMatch = extractCardMatch(newCardName, newCardUrl)
   if (!newCardMatch) return []
 
-  const allCards = await prisma.card.findMany({
-    where: {
-      isMerged: false, // Only check non-merged cards
-    },
-  })
+  // Check all cards (both merged and non-merged)
+  const allCards = await prisma.card.findMany()
 
   const matches: { card: Card; match: CardMatch }[] = []
 
@@ -118,16 +115,7 @@ export async function mergeCardWithExisting(
     },
   })
 
-  // Mark the new card as merged with the primary
-  await prisma.card.create({
-    data: {
-      ...newCardData,
-      mergedWith: primaryCard.id,
-      isMerged: true,
-      mergeGroupId,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any, // Type assertion needed for Prisma compatibility
-  })
+  // Note: We don't create a new card when merging - we just update the existing one
 
   // Update any other existing matches to be merged with the primary
   for (const { card } of existingMatches.slice(1)) {

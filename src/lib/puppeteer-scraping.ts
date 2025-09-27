@@ -137,9 +137,30 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
             }
           }
         | null
-      // Market Price extraction
-      const priceElements = Array.from(document.querySelectorAll('span.price-points__upper__price'))
-      const marketPriceText = priceElements[0]?.textContent?.trim() || ''
+      // Market Price extraction - try multiple selectors
+      let marketPriceText = ''
+      
+      // Try different price selectors
+      const priceSelectors = [
+        'span.price-points__upper__price',
+        '[data-testid="price-points__upper__price"]',
+        '.price-points__upper__price',
+        '.market-price',
+        '.price-points .price',
+        '[class*="price-points"] [class*="price"]',
+        '.product-details__pricing .price',
+        '.pricing .price'
+      ]
+      
+      for (const selector of priceSelectors) {
+        const elements = Array.from(document.querySelectorAll(selector))
+        if (elements.length > 0) {
+          marketPriceText = elements[0]?.textContent?.trim() || ''
+          if (marketPriceText && marketPriceText.includes('$')) {
+            break
+          }
+        }
+      }
 
       // Card name extraction
       const nameElement = document.querySelector('h1[data-testid="product-detail__name"]') || 
