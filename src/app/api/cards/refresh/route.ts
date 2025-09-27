@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
           if (card.url.includes('tcgplayer.com/product/')) {
             // TCGplayer URL
-            const productIdMatch = card.url.match(/\/product\/(\d+)\//)
+            const productIdMatch = card.url.match(/\/product\/(\d+)(?:\/|$|\?)/)
             if (!productIdMatch) {
               throw new Error('Invalid TCGplayer URL format')
             }

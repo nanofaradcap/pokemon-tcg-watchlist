@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
 
     if (url.includes('tcgplayer.com/product/')) {
       // TCGplayer URL
-      const productIdMatch = url.match(/\/product\/(\d+)\//)
+      const productIdMatch = url.match(/\/product\/(\d+)(?:\/|$|\?)/)
       if (!productIdMatch) {
         return NextResponse.json(
           { error: 'Invalid TCGplayer URL format' },
@@ -275,6 +275,27 @@ export async function POST(req: NextRequest) {
           lastCheckedAt: new Date(),
         },
       })
+
+      // Check if this updated card should be merged with other cards
+      const matchingCards = await findMatchingCards(cardData.name, url)
+      if (matchingCards.length > 0) {
+        // Merge with existing cards
+        const { mergedCard, wasMerged } = await mergeCardWithExisting(cardData, matchingCards)
+        
+        // Update profile link to point to merged card
+        await prisma.profileCard.upsert({
+          where: { profileId_cardId: { profileId: profileRow.id, cardId: mergedCard.id } },
+          update: {},
+          create: { profileId: profileRow.id, cardId: mergedCard.id },
+        })
+
+        return NextResponse.json({ 
+          ...mergedCard, 
+          wasMerged,
+          mergedWithCount: matchingCards.length,
+          message: wasMerged ? 'Card merged with existing cards' : 'Card already exists, data updated'
+        })
+      }
 
       return NextResponse.json({ 
         ...updatedCard, 
