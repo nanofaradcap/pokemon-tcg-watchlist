@@ -79,13 +79,17 @@ export class CardService {
     return await prisma.$transaction(async (tx) => {
       try {
         // 1. Extract card metadata
-        // For now, we'll extract the card name from the URL
+        // Extract the card name from the URL, ignoring query parameters
         let cardName = ''
         if (url.includes('tcgplayer.com')) {
-          const urlMatch = url.match(/\/product\/\d+\/([^\/\?]+)/)
+          // Remove query parameters before parsing
+          const cleanUrl = url.split('?')[0]
+          const urlMatch = cleanUrl.match(/\/product\/\d+\/([^\/]+)/)
           cardName = urlMatch ? decodeURIComponent(urlMatch[1].replace(/-/g, ' ')) : ''
         } else if (url.includes('pricecharting.com')) {
-          const urlMatch = url.match(/\/game\/[^\/]+\/([^\/\?]+)/)
+          // Remove query parameters before parsing
+          const cleanUrl = url.split('?')[0]
+          const urlMatch = cleanUrl.match(/\/game\/[^\/]+\/([^\/]+)/)
           cardName = urlMatch ? decodeURIComponent(urlMatch[1].replace(/-/g, ' ')) : ''
         }
         
@@ -378,6 +382,9 @@ export class CardService {
 
   private async scrapeCardData(url: string): Promise<Record<string, any>> { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (url.includes('tcgplayer.com')) {
+      // Strip query parameters for consistent storage
+      const cleanUrl = url.split('?')[0]
+      
       try {
         const productIdMatch = url.match(/\/product\/(\d+)(?:\/|$|\?)/)
         if (!productIdMatch) {
@@ -390,7 +397,7 @@ export class CardService {
           sourceType: 'tcgplayer',
           productId: productIdMatch[1],
           currency: 'USD',
-          url: url
+          url: cleanUrl
         }
       } catch (error) {
         console.warn('Puppeteer scraping failed, using fallback:', error)
@@ -400,17 +407,20 @@ export class CardService {
           sourceType: 'tcgplayer',
           productId: '',
           currency: 'USD',
-          url: url
+          url: cleanUrl
         }
       }
     } else if (url.includes('pricecharting.com')) {
+      // Strip query parameters for consistent storage
+      const cleanUrl = url.split('?')[0]
+      
       const scrapedData = await scrapePriceCharting(url)
       return {
         ...scrapedData,
         sourceType: 'pricecharting',
         productId: '',
         currency: 'USD',
-        url: url
+        url: cleanUrl
       }
     } else {
       throw new Error('Unsupported URL format')
