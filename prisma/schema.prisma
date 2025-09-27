@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Profile {
@@ -40,6 +40,10 @@ model Card {
   lastCheckedAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  // Merging fields
+  mergedWith     String?  // ID of the card this is merged with
+  isMerged       Boolean  @default(false) // Whether this card is part of a merge
+  mergeGroupId   String?  // Group ID for merged cards (same for all cards in a merge group)
 
   profileLinks   ProfileCard[]
 }

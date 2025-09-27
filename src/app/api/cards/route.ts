@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { scrapeWithPuppeteer, type ScrapedData } from '@/lib/puppeteer-scraping'
 import { scrapeWithFallback } from '@/lib/scraping-fallback'
 import { scrapePriceCharting, type PriceChartingData } from '@/lib/pricecharting-scraping'
+import { findMatchingCards, mergeCardWithExisting, unmergeCard, getMergedCardData } from '@/lib/card-merging'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 type Profile = typeof Profiles[number]
@@ -48,28 +49,61 @@ export async function GET(req: NextRequest) {
       include: { card: true },
     })
 
-    const result = rows.map(r => ({
-      // flatten for UI compatibility
-      id: r.id,
-      url: r.card.url,
-      productId: r.card.productId,
-      name: r.card.name,
-      setDisplay: r.setDisplay ?? r.card.setDisplay ?? undefined,
-      jpNo: r.jpNo ?? r.card.jpNo ?? undefined,
-      rarity: r.rarity ?? r.card.rarity ?? undefined,
-      imageUrl: r.card.imageUrl ?? undefined,
-      marketPrice: r.card.marketPrice ?? undefined,
-      currency: r.card.currency,
-      // PriceCharting prices
-      ungradedPrice: r.card.ungradedPrice ?? undefined,
-      grade7Price: r.card.grade7Price ?? undefined,
-      grade8Price: r.card.grade8Price ?? undefined,
-      grade9Price: r.card.grade9Price ?? undefined,
-      grade95Price: r.card.grade95Price ?? undefined,
-      grade10Price: r.card.grade10Price ?? undefined,
-      lastCheckedAt: r.card.lastCheckedAt,
-      createdAt: r.createdAt,
-      updatedAt: r.card.updatedAt,
+    // Get merged card data for each card
+    const result = await Promise.all(rows.map(async r => {
+      const mergedData = await getMergedCardData(r.card.id)
+      if (!mergedData) {
+        // Fallback to original data if merging fails
+        return {
+          id: r.id,
+          url: r.card.url,
+          productId: r.card.productId,
+          name: r.card.name,
+          setDisplay: r.setDisplay ?? r.card.setDisplay ?? undefined,
+          jpNo: r.jpNo ?? r.card.jpNo ?? undefined,
+          rarity: r.rarity ?? r.card.rarity ?? undefined,
+          imageUrl: r.card.imageUrl ?? undefined,
+          marketPrice: r.card.marketPrice ?? undefined,
+          currency: r.card.currency,
+          ungradedPrice: r.card.ungradedPrice ?? undefined,
+          grade7Price: r.card.grade7Price ?? undefined,
+          grade8Price: r.card.grade8Price ?? undefined,
+          grade9Price: r.card.grade9Price ?? undefined,
+          grade95Price: r.card.grade95Price ?? undefined,
+          grade10Price: r.card.grade10Price ?? undefined,
+          lastCheckedAt: r.card.lastCheckedAt,
+          createdAt: r.createdAt,
+          updatedAt: r.card.updatedAt,
+          isMerged: r.card.isMerged,
+          mergedUrls: [r.card.url],
+          mergedSources: [r.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'],
+        }
+      }
+
+      return {
+        id: r.id,
+        url: mergedData.url,
+        productId: mergedData.productId,
+        name: mergedData.name,
+        setDisplay: r.setDisplay ?? mergedData.setDisplay ?? undefined,
+        jpNo: r.jpNo ?? mergedData.jpNo ?? undefined,
+        rarity: r.rarity ?? mergedData.rarity ?? undefined,
+        imageUrl: mergedData.imageUrl ?? undefined,
+        marketPrice: mergedData.marketPrice ?? undefined,
+        currency: mergedData.currency,
+        ungradedPrice: mergedData.ungradedPrice ?? undefined,
+        grade7Price: mergedData.grade7Price ?? undefined,
+        grade8Price: mergedData.grade8Price ?? undefined,
+        grade9Price: mergedData.grade9Price ?? undefined,
+        grade95Price: mergedData.grade95Price ?? undefined,
+        grade10Price: mergedData.grade10Price ?? undefined,
+        lastCheckedAt: mergedData.lastCheckedAt,
+        createdAt: r.createdAt,
+        updatedAt: mergedData.updatedAt,
+        isMerged: mergedData.isMerged,
+        mergedUrls: mergedData.mergedUrls,
+        mergedSources: mergedData.mergedSources,
+      }
     }))
 
     return NextResponse.json(result)
@@ -217,25 +251,47 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Check if card already exists by URL
+    const existingCard = await prisma.card.findUnique({
+      where: { url },
+    })
+
+    if (existingCard) {
+      // Card already exists, just update the profile link
+      let profileRow = await prisma.profile.findUnique({ where: { name: profile } })
+      if (!profileRow) profileRow = await prisma.profile.create({ data: { name: profile } })
+
+      await prisma.profileCard.upsert({
+        where: { profileId_cardId: { profileId: profileRow.id, cardId: existingCard.id } },
+        update: {},
+        create: { profileId: profileRow.id, cardId: existingCard.id },
+      })
+
+      return NextResponse.json({ ...existingCard })
+    }
+
+    // Find matching cards for merging
+    const matchingCards = await findMatchingCards(cardData.name, url)
+    
+    // Merge with existing cards or create new one
+    const { mergedCard, wasMerged } = await mergeCardWithExisting(cardData, matchingCards)
+
     // Ensure profile row exists
     let profileRow = await prisma.profile.findUnique({ where: { name: profile } })
     if (!profileRow) profileRow = await prisma.profile.create({ data: { name: profile } })
 
-    // Upsert global card by url
-    const card = await prisma.card.upsert({
-      where: { url },
-      update: cardData,
-      create: cardData,
-    })
-
     // Upsert profile-card link
     await prisma.profileCard.upsert({
-      where: { profileId_cardId: { profileId: profileRow.id, cardId: card.id } },
+      where: { profileId_cardId: { profileId: profileRow.id, cardId: mergedCard.id } },
       update: {},
-      create: { profileId: profileRow.id, cardId: card.id },
+      create: { profileId: profileRow.id, cardId: mergedCard.id },
     })
 
-    return NextResponse.json({ ...card })
+    return NextResponse.json({ 
+      ...mergedCard, 
+      wasMerged,
+      mergedWithCount: matchingCards.length 
+    })
   } catch (error) {
     console.error('Error adding card:', error)
     
@@ -309,11 +365,12 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/cards - Delete a card
+// DELETE /api/cards - Delete a card or unmerge
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
+    const action = searchParams.get('action') // 'delete' or 'unmerge'
     
     if (!id) {
       return NextResponse.json(
@@ -322,14 +379,25 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // Delete the link only
-    await prisma.profileCard.delete({ where: { id } })
-
-    return NextResponse.json({ success: true })
+    if (action === 'unmerge') {
+      // Unmerge the card
+      const success = await unmergeCard(id)
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Card is not merged or does not exist' },
+          { status: 404 }
+        )
+      }
+      return NextResponse.json({ success: true, action: 'unmerged' })
+    } else {
+      // Delete the link only (default behavior)
+      await prisma.profileCard.delete({ where: { id } })
+      return NextResponse.json({ success: true, action: 'deleted' })
+    }
   } catch (error) {
-    console.error('Error deleting card:', error)
+    console.error('Error deleting/unmerging card:', error)
     return NextResponse.json(
-      { error: 'Failed to delete card' },
+      { error: 'Failed to delete/unmerge card' },
       { status: 500 }
     )
   }
