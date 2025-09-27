@@ -17,19 +17,19 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Pokémon TCG Watchlist",
-  description: "Track Pokémon TCG card prices from TCGplayer",
-  keywords: ["pokemon", "tcg", "trading cards", "prices", "watchlist"],
+  description: "Track Pokémon TCG card prices from TCGplayer and PriceCharting with automatic card merging",
+  keywords: ["pokemon", "tcg", "trading cards", "prices", "watchlist", "tcgplayer", "pricecharting", "graded cards"],
   authors: [{ name: "Chen" }],
   openGraph: {
     title: "Pokémon TCG Watchlist",
-    description: "Track Pokémon TCG card prices from TCGplayer",
+    description: "Track Pokémon TCG card prices from TCGplayer and PriceCharting with automatic card merging",
     type: "website",
     url: "https://chencat.com",
   },
   twitter: {
     card: "summary",
     title: "Pokémon TCG Watchlist",
-    description: "Track Pokémon TCG card prices from TCGplayer",
+    description: "Track Pokémon TCG card prices from TCGplayer and PriceCharting with automatic card merging",
   },
 };
 
