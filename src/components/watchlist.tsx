@@ -397,7 +397,30 @@ export function Watchlist() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{card.name}</div>
+                    <div className="font-medium">
+                      {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
+                        <button
+                          onClick={() => {
+                            card.mergedUrls?.forEach(url => {
+                              window.open(url, '_blank')
+                            })
+                          }}
+                          className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                          title="Click to open all URLs in separate tabs"
+                        >
+                          {card.name}
+                        </button>
+                      ) : (
+                        <a
+                          href={card.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {card.name}
+                        </a>
+                      )}
+                    </div>
                     {card.isMerged && card.mergedSources && (
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                         Merged: {card.mergedSources.join(' + ')}
