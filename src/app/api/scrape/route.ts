@@ -65,9 +65,7 @@ export async function POST(req: NextRequest) {
 
     // Use Puppeteer scraping
     try {
-      console.log(`Starting Puppeteer scraping for product ${productId}`)
       const result = await scrapeWithPuppeteer(url, productId)
-      console.log(`Puppeteer scraping succeeded for product ${productId}`)
       return NextResponse.json(result)
     } catch (puppeteerError) {
       console.error(`Puppeteer failed for product ${productId}:`, {

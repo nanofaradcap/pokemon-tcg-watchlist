@@ -216,14 +216,12 @@ export async function POST(req: NextRequest) {
 
       try {
         scrapedData = await scrapeWithPuppeteer(url, productId)
-        console.log('Puppeteer scraping succeeded')
       } catch (puppeteerError) {
         console.warn('Puppeteer scraping failed, using fallback method:', puppeteerError)
         
         // Use fallback method for production
         try {
           scrapedData = await scrapeWithFallback(url, productId)
-          console.log('Fallback scraping succeeded')
         } catch (fallbackError) {
           console.error('Both scraping methods failed:', { puppeteerError, fallbackError })
           return NextResponse.json(
@@ -266,7 +264,6 @@ export async function POST(req: NextRequest) {
       let scrapedData: PriceChartingData
       try {
         scrapedData = await scrapePriceCharting(url)
-        console.log('PriceCharting scraping succeeded')
       } catch (pricechartingError) {
         console.error('PriceCharting scraping failed:', pricechartingError)
         return NextResponse.json(
