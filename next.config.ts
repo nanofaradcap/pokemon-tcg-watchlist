@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   generateEtags: false,
+  // Redirects
+  async redirects() {
+    return [
+      {
+        source: '/work/',
+        destination: '/work',
+        permanent: true,
+      },
+    ];
+  },
   // Security headers
   async headers() {
     return [

@@ -37,14 +37,19 @@ interface CardRow {
   mergedSources?: string[]
 }
 
-export function Watchlist() {
+const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
+
+interface WatchlistProps {
+  profiles?: readonly string[]
+}
+
+export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   const [url, setUrl] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>('compact')
   const [sortKey, setSortKey] = useState<'name' | 'marketPrice'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const profiles = useMemo(() => ['Chen', 'Tiff', 'Pho', 'Ying'] as const, [])
-  const [profile, setProfile] = useState<typeof profiles[number]>('Chen')
+  const [profile, setProfile] = useState<string>(profiles[0])
   const queryClient = useQueryClient()
 
   // Persist view mode
@@ -52,12 +57,13 @@ export function Watchlist() {
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:viewMode') : null
     if (saved === 'compact' || saved === 'expanded') setViewMode(saved)
     const savedProfile = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:profile') : null
-    if (savedProfile && profiles.includes(savedProfile as typeof profiles[number])) setProfile(savedProfile as typeof profiles[number])
+    if (savedProfile && profiles.includes(savedProfile)) setProfile(savedProfile)
+    else setProfile(profiles[0]) // Default to first profile if saved one doesn't exist
 
     const onProfileChange = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      if (detail && profiles.includes(detail as typeof profiles[number])) {
-        setProfile(detail as typeof profiles[number])
+      if (detail && profiles.includes(detail)) {
+        setProfile(detail)
       }
     }
     if (typeof window !== 'undefined') {

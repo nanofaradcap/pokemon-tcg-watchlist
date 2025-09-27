@@ -16,7 +16,7 @@ export default function WorkPage() {
           </div>
           <ProfilePills profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne']} />
         </div>
-        <Watchlist />
+        <Watchlist profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne']} />
       </div>
     </div>
   )
