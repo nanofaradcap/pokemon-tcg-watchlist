@@ -218,11 +218,24 @@ export async function getMergedCardData(cardId: string): Promise<MergedCardData 
 
 /**
  * Unmerge a card from its merge group
+ * cardId can be either a Card ID or ProfileCard ID
  */
 export async function unmergeCard(cardId: string): Promise<boolean> {
-  const card = await prisma.card.findUnique({
+  // First try to find by Card ID
+  let card = await prisma.card.findUnique({
     where: { id: cardId },
   })
+
+  // If not found, try to find by ProfileCard ID
+  if (!card) {
+    const profileCard = await prisma.profileCard.findUnique({
+      where: { id: cardId },
+      include: { card: true },
+    })
+    
+    if (!profileCard) return false
+    card = profileCard.card
+  }
 
   if (!card || !card.isMerged) return false
 
@@ -259,3 +272,4 @@ function getSourceFromUrl(url: string): string {
   if (url.includes('pricecharting.com')) return 'PriceCharting'
   return 'Unknown'
 }
+
