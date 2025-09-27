@@ -11,7 +11,7 @@ export default function WorkPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Pokémon TCG Watchlist - Work</h1>
             <p className="text-muted-foreground mt-2">
-              Track Pokémon TCG card prices from TCGplayer and PriceCharting with automatic card merging
+              Track Pokémon card prices from TCGplayer and PriceCharting
             </p>
           </div>
           <ProfilePills profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne']} />

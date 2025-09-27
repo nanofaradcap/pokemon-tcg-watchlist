@@ -8,9 +8,9 @@ export default function Home() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
                    <h1 className="text-3xl font-bold tracking-tight">Pokémon TCG Watchlist</h1>
-            <p className="text-muted-foreground mt-2">
-              Track Pokémon TCG card prices from TCGplayer and PriceCharting with automatic card merging
-            </p>
+        <p className="text-muted-foreground mt-2">
+          Track Pokémon card prices from TCGplayer and PriceCharting
+        </p>
           </div>
           <ProfilePills />
         </div>

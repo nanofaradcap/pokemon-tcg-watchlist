@@ -1,6 +1,6 @@
 # Pokémon TCG Watchlist
 
-A modern web application for tracking Pokémon TCG card prices from multiple sources with automatic card merging.
+A modern web application for tracking Pokémon card prices from TCGplayer and PriceCharting.
 
 ## Features
 
