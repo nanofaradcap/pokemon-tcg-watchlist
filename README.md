@@ -21,6 +21,23 @@ A modern web application for tracking Pokémon TCG card prices from multiple sou
 
 ## Getting Started
 
+### Database Setup
+This project uses PostgreSQL for both development and production environments:
+- **Production**: Neon PostgreSQL (configured via Vercel environment variables)
+- **Development**: Same Neon PostgreSQL database (shared for consistency)
+
+### Environment Setup
+1. Copy environment variables from Vercel:
+   ```bash
+   vercel env pull .env.local
+   ```
+
+2. Generate Prisma client:
+   ```bash
+   npx prisma generate
+   ```
+
+### Development Server
 First, run the development server:
 
 ```bash
