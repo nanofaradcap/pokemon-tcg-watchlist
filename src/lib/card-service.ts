@@ -75,9 +75,15 @@ export class CardService {
   private cache = new Map<string, { data: CardWithSources; timestamp: number }>()
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-  async addCard(url: string, profile: string): Promise<CardDisplayData> {
+  async addCard(url: string, profileName: string): Promise<CardDisplayData> {
     return await prisma.$transaction(async (tx) => {
       try {
+        // 0. Ensure profile exists
+        let profile = await tx.profile.findUnique({ where: { name: profileName } })
+        if (!profile) {
+          profile = await tx.profile.create({ data: { name: profileName } })
+        }
+
         // 1. Extract card metadata
         // Extract the card name from the URL, ignoring query parameters
         let cardName = ''
@@ -104,11 +110,11 @@ export class CardService {
         
         if (existingCards.length > 0) {
           // 3. Merge with existing card
-          const mergedCard = await this.mergeWithExisting(tx, existingCards[0], url, profile)
+          const mergedCard = await this.mergeWithExisting(tx, existingCards[0], url, profile.id)
           return this.getCardDisplayData(mergedCard)
         } else {
           // 4. Create new card
-          const newCard = await this.createNewCard(tx, cardMatch, url, profile)
+          const newCard = await this.createNewCard(tx, cardMatch, url, profile.id)
           return this.getCardDisplayData(newCard)
         }
       } catch (error) {
@@ -118,9 +124,15 @@ export class CardService {
     })
   }
 
-  async getCardsForProfile(profile: string): Promise<CardDisplayData[]> {
+  async getCardsForProfile(profileName: string): Promise<CardDisplayData[]> {
+    // Ensure profile exists
+    let profile = await prisma.profile.findUnique({ where: { name: profileName } })
+    if (!profile) {
+      profile = await prisma.profile.create({ data: { name: profileName } })
+    }
+
     const userCards = await prisma.userCard.findMany({
-      where: { userId: profile },
+      where: { userId: profile.id },
       include: {
         card: {
           include: {
@@ -163,12 +175,18 @@ export class CardService {
     })
   }
 
-  async deleteCard(cardId: string, profile: string): Promise<void> {
+  async deleteCard(cardId: string, profileName: string): Promise<void> {
     await prisma.$transaction(async (tx) => {
+      // Get profile ID
+      const profile = await tx.profile.findUnique({ where: { name: profileName } })
+      if (!profile) {
+        throw new Error('Profile not found')
+      }
+
       // Remove user relationship
       await tx.userCard.deleteMany({
         where: {
-          userId: profile,
+          userId: profile.id,
           cardId: cardId
         }
       })
@@ -221,7 +239,7 @@ export class CardService {
     tx: PrismaTransaction, 
     existingCard: CardWithSources, 
     newUrl: string, 
-    profile: string
+    profileId: string
   ): Promise<CardWithSources> {
     // 1. Scrape new card data
     const newSourceData = await this.scrapeCardData(newUrl)
@@ -248,13 +266,13 @@ export class CardService {
     await tx.userCard.upsert({
       where: {
         userId_cardId: {
-          userId: profile,
+          userId: profileId,
           cardId: existingCard.id
         }
       },
       update: {},
       create: {
-        userId: profile,
+        userId: profileId,
         cardId: existingCard.id
       }
     })
@@ -271,7 +289,7 @@ export class CardService {
     tx: PrismaTransaction, 
     cardMatch: CardMatch, 
     url: string, 
-    profile: string
+    profileId: string
   ): Promise<CardWithSources> {
     // 1. Scrape card data
     const sourceData = await this.scrapeCardData(url)
@@ -293,7 +311,7 @@ export class CardService {
     // 4. Add user relationship
     await tx.userCard.create({
       data: {
-        userId: profile,
+        userId: profileId,
         cardId: card.id
       }
     })

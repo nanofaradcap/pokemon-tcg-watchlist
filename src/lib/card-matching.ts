@@ -15,12 +15,25 @@ export interface CardMatch {
 export function extractTCGplayerMatch(cardName: string): CardMatch | null {
   // Pattern: "Card Name - Number/Total - Set Name"
   const match = cardName.match(/^(.+?)\s*-\s*(\d+)\/\d+\s*-/)
-  if (!match) return null
-  
-  return {
-    name: match[1].trim(),
-    number: match[2]
+  if (match) {
+    return {
+      name: match[1].trim(),
+      number: match[2]
+    }
   }
+  
+  // Fallback: Try to extract number from URL-style names like "pokemon sv01 scarlet and violet base set gardevoir ex 245 198"
+  const numberMatch = cardName.match(/(\d+)\s+(\d+)$/)
+  if (numberMatch) {
+    const cardNumber = numberMatch[1]
+    const nameWithoutNumber = cardName.replace(/\s+\d+\s+\d+$/, '').trim()
+    return {
+      name: nameWithoutNumber,
+      number: cardNumber
+    }
+  }
+  
+  return null
 }
 
 /**
