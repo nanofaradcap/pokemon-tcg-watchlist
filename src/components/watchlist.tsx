@@ -37,7 +37,7 @@ export function Watchlist() {
   const [url, setUrl] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>('compact')
-  const [sortKey, setSortKey] = useState<'name' | 'marketPrice' | 'jpNo'>('name')
+  const [sortKey, setSortKey] = useState<'name' | 'marketPrice'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const profiles = useMemo(() => ['Chen', 'Tiff', 'Pho', 'Ying'] as const, [])
   const [profile, setProfile] = useState<typeof profiles[number]>('Chen')
@@ -244,17 +244,6 @@ export function Watchlist() {
           if (nullsLast(bv)) return -1
           return (((av as number) - (bv as number)) || 0) * direction
         }
-        case 'jpNo': {
-          const av = a.jpNo || ''
-          const bv = b.jpNo || ''
-          // Try numeric compare by the first number before '/'
-          const anum = parseInt(av.split('/')[0] || '0', 10)
-          const bnum = parseInt(bv.split('/')[0] || '0', 10)
-          if (!Number.isNaN(anum) && !Number.isNaN(bnum) && (anum !== bnum)) {
-            return (anum - bnum) * direction
-          }
-          return av.localeCompare(bv) * direction
-        }
         default:
           return 0
       }
@@ -262,7 +251,7 @@ export function Watchlist() {
     return copy
   })()
 
-  const toggleSort = (key: 'name' | 'marketPrice' | 'jpNo') => {
+  const toggleSort = (key: 'name' | 'marketPrice') => {
     if (sortKey === key) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
@@ -357,18 +346,6 @@ export function Watchlist() {
               <TableHead className="w-20 text-center">Ungraded</TableHead>
               <TableHead className="w-20 text-center">Grade 9</TableHead>
               <TableHead className="w-20 text-center">Grade 10</TableHead>
-              <TableHead className="w-20">
-                <button
-                  type="button"
-                  className="flex items-center gap-1"
-                  onClick={() => toggleSort('jpNo')}
-                >
-                  No.
-                  {sortKey === 'jpNo' ? (
-                    <span aria-hidden>{sortDir === 'asc' ? '▲' : '▼'}</span>
-                  ) : null}
-                </button>
-              </TableHead>
               <TableHead className="w-20">Link</TableHead>
               <TableHead className="w-16">Actions</TableHead>
             </TableRow>
@@ -376,14 +353,14 @@ export function Watchlist() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
                   <p className="mt-2 text-muted-foreground">Loading cards...</p>
                 </TableCell>
               </TableRow>
             ) : cards.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   <p className="text-muted-foreground">No cards in your watchlist yet.</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Add a TCGplayer or PriceCharting URL above to get started.
@@ -434,9 +411,6 @@ export function Watchlist() {
                   </TableCell>
                   <TableCell className="font-mono text-center">
                     {formatPrice(card.grade10Price)}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {card.jpNo || '—'}
                   </TableCell>
                   <TableCell>
                     <Button
