@@ -49,75 +49,31 @@ export async function GET(req: NextRequest) {
       include: { card: true },
     })
 
-    // Get merged card data for each card and deduplicate merged cards
-    const processedCards = new Set<string>()
-    const result = []
-    
-    for (const r of rows) {
-      // Skip if this card is already processed as part of a merge group
-      if (processedCards.has(r.card.id)) continue
-      
-      const mergedData = await getMergedCardData(r.card.id)
-      if (!mergedData) {
-        // Fallback to original data if merging fails
-        result.push({
-          id: r.id,
-          url: r.card.url,
-          productId: r.card.productId,
-          name: r.card.name,
-          setDisplay: r.setDisplay ?? r.card.setDisplay ?? undefined,
-          jpNo: r.jpNo ?? r.card.jpNo ?? undefined,
-          rarity: r.rarity ?? r.card.rarity ?? undefined,
-          imageUrl: r.card.imageUrl ?? undefined,
-          marketPrice: r.card.marketPrice ?? undefined,
-          currency: r.card.currency,
-          ungradedPrice: r.card.ungradedPrice ?? undefined,
-          grade7Price: r.card.grade7Price ?? undefined,
-          grade8Price: r.card.grade8Price ?? undefined,
-          grade9Price: r.card.grade9Price ?? undefined,
-          grade95Price: r.card.grade95Price ?? undefined,
-          grade10Price: r.card.grade10Price ?? undefined,
-          lastCheckedAt: r.card.lastCheckedAt,
-          createdAt: r.createdAt,
-          updatedAt: r.card.updatedAt,
-          isMerged: r.card.isMerged,
-          mergedUrls: [r.card.url],
-          mergedSources: [r.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'],
-        })
-        processedCards.add(r.card.id)
-      } else {
-        // Add all cards in the merge group to processed set
-        const mergeGroupCards = await prisma.card.findMany({
-          where: { mergeGroupId: mergedData.mergeGroupId },
-        })
-        mergeGroupCards.forEach(card => processedCards.add(card.id))
-        
-        result.push({
-          id: r.id,
-          url: mergedData.url,
-          productId: mergedData.productId,
-          name: mergedData.name,
-          setDisplay: r.setDisplay ?? mergedData.setDisplay ?? undefined,
-          jpNo: r.jpNo ?? mergedData.jpNo ?? undefined,
-          rarity: r.rarity ?? mergedData.rarity ?? undefined,
-          imageUrl: mergedData.imageUrl ?? undefined,
-          marketPrice: mergedData.marketPrice ?? undefined,
-          currency: mergedData.currency,
-          ungradedPrice: mergedData.ungradedPrice ?? undefined,
-          grade7Price: mergedData.grade7Price ?? undefined,
-          grade8Price: mergedData.grade8Price ?? undefined,
-          grade9Price: mergedData.grade9Price ?? undefined,
-          grade95Price: mergedData.grade95Price ?? undefined,
-          grade10Price: mergedData.grade10Price ?? undefined,
-          lastCheckedAt: mergedData.lastCheckedAt,
-          createdAt: r.createdAt,
-          updatedAt: mergedData.updatedAt,
-          isMerged: mergedData.isMerged,
-          mergedUrls: mergedData.mergedUrls,
-          mergedSources: mergedData.mergedSources,
-        })
-      }
-    }
+    // Convert ProfileCard rows to card data
+    const result = rows.map(r => ({
+      id: r.id,
+      url: r.card.url,
+      productId: r.card.productId,
+      name: r.card.name,
+      setDisplay: r.setDisplay ?? r.card.setDisplay ?? undefined,
+      jpNo: r.jpNo ?? r.card.jpNo ?? undefined,
+      rarity: r.rarity ?? r.card.rarity ?? undefined,
+      imageUrl: r.card.imageUrl ?? undefined,
+      marketPrice: r.card.marketPrice ?? undefined,
+      currency: r.card.currency,
+      ungradedPrice: r.card.ungradedPrice ?? undefined,
+      grade7Price: r.card.grade7Price ?? undefined,
+      grade8Price: r.card.grade8Price ?? undefined,
+      grade9Price: r.card.grade9Price ?? undefined,
+      grade95Price: r.card.grade95Price ?? undefined,
+      grade10Price: r.card.grade10Price ?? undefined,
+      lastCheckedAt: r.card.lastCheckedAt,
+      createdAt: r.createdAt,
+      updatedAt: r.card.updatedAt,
+      isMerged: r.card.isMerged,
+      mergedUrls: [r.card.url],
+      mergedSources: [r.card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'],
+    }))
 
     return NextResponse.json(result)
   } catch (error) {
