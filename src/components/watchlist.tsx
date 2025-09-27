@@ -399,17 +399,34 @@ export function Watchlist() {
                   <TableCell>
                     <div className="font-medium">
                       {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
-                        <button
-                          onClick={() => {
-                            card.mergedUrls?.forEach(url => {
-                              window.open(url, '_blank')
-                            })
-                          }}
-                          className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                          title="Click to open all URLs in separate tabs"
-                        >
-                          {card.name}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-blue-600 dark:text-blue-400">{card.name}</span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              {card.mergedUrls?.map((url, index) => {
+                                const source = url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
+                                return (
+                                  <DropdownMenuItem key={index} asChild>
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      {source}
+                                    </a>
+                                  </DropdownMenuItem>
+                                )
+                              })}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       ) : (
                         <a
                           href={card.url}
