@@ -1,0 +1,111 @@
+{
+  "profiles": [
+    {
+      "id": "cmg35hddf000gxedro4kk7031",
+      "name": "Chen",
+      "createdAt": "2025-09-28T03:38:54.580Z"
+    },
+    {
+      "id": "cmg35j7340016xetyx9cnmrt4",
+      "name": "Tiff",
+      "createdAt": "2025-09-28T03:40:19.744Z"
+    }
+  ],
+  "cards": [
+    {
+      "id": "cmg35iro7000lxety4ffkvbv3",
+      "name": "pokemon sv scarlet and violet promo cards victini 208",
+      "setDisplay": "SV: White Flare",
+      "No": "208",
+      "rarity": null,
+      "imageUrl": "https://tcgplayer-cdn.tcgplayer.com/product/646169_in_1000x1000.jpg",
+      "createdAt": "2025-09-28T03:39:59.768Z",
+      "updatedAt": "2025-09-28T03:39:59.768Z"
+    }
+  ],
+  "cardSources": [
+    {
+      "id": "cmg35irp5000nxety5ilpenve",
+      "cardId": "cmg35iro7000lxety4ffkvbv3",
+      "sourceType": "tcgplayer",
+      "url": "https://www.tcgplayer.com/product/646169/pokemon-sv-scarlet-and-violet-promo-cards-victini-208",
+      "productId": "646169",
+      "currency": "USD",
+      "lastCheckedAt": "2025-09-28T03:39:59.799Z",
+      "createdAt": "2025-09-28T03:39:59.802Z",
+      "updatedAt": "2025-09-28T03:39:59.802Z"
+    },
+    {
+      "id": "cmg35iwbr000txety4ahrs5b6",
+      "cardId": "cmg35iro7000lxety4ffkvbv3",
+      "sourceType": "pricecharting",
+      "url": "https://www.pricecharting.com/game/pokemon-promo/victini-208",
+      "productId": "",
+      "currency": "USD",
+      "lastCheckedAt": "2025-09-28T03:40:05.799Z",
+      "createdAt": "2025-09-28T03:40:05.800Z",
+      "updatedAt": "2025-09-28T03:40:05.800Z"
+    }
+  ],
+  "cardPrices": [
+    {
+      "id": "cmg35irpz000pxety8j9fkksq",
+      "sourceId": "cmg35irp5000nxety5ilpenve",
+      "priceType": "market",
+      "price": "7.28",
+      "createdAt": "2025-09-28T03:39:59.832Z",
+      "updatedAt": "2025-09-28T03:39:59.832Z"
+    },
+    {
+      "id": "cmg35iwco000vxetyt39q6gsc",
+      "sourceId": "cmg35iwbr000txety4ahrs5b6",
+      "priceType": "ungraded",
+      "price": "16.38",
+      "createdAt": "2025-09-28T03:40:05.832Z",
+      "updatedAt": "2025-09-28T03:40:05.832Z"
+    },
+    {
+      "id": "cmg35iwdk000xxetyeckr9467",
+      "sourceId": "cmg35iwbr000txety4ahrs5b6",
+      "priceType": "grade8",
+      "price": "21.02",
+      "createdAt": "2025-09-28T03:40:05.865Z",
+      "updatedAt": "2025-09-28T03:40:05.865Z"
+    },
+    {
+      "id": "cmg35iweg000zxetyoyby37ev",
+      "sourceId": "cmg35iwbr000txety4ahrs5b6",
+      "priceType": "grade9",
+      "price": "48",
+      "createdAt": "2025-09-28T03:40:05.896Z",
+      "updatedAt": "2025-09-28T03:40:05.896Z"
+    },
+    {
+      "id": "cmg35iwfb0011xetybf5ckoeh",
+      "sourceId": "cmg35iwbr000txety4ahrs5b6",
+      "priceType": "grade95",
+      "price": "53",
+      "createdAt": "2025-09-28T03:40:05.928Z",
+      "updatedAt": "2025-09-28T03:40:05.928Z"
+    },
+    {
+      "id": "cmg35iwga0013xetybxbxnjmm",
+      "sourceId": "cmg35iwbr000txety4ahrs5b6",
+      "priceType": "grade10",
+      "price": "450",
+      "createdAt": "2025-09-28T03:40:05.962Z",
+      "updatedAt": "2025-09-28T03:40:05.962Z"
+    }
+  ],
+  "priceHistories": [],
+  "userCards": [
+    {
+      "id": "cmg35irqv000rxetyr5u2q9dr",
+      "userId": "cmg35hddf000gxedro4kk7031",
+      "cardId": "cmg35iro7000lxety4ffkvbv3",
+      "createdAt": "2025-09-28T03:39:59.864Z"
+    }
+  ],
+  "exportedAt": "2025-09-28T03:44:00.223Z",
+  "schemaVersion": "jpNo-to-No-migration"
+}
