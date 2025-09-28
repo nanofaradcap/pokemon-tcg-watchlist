@@ -202,20 +202,21 @@ export class CardService {
         }
       }
       
-      // 4. Extract card match with updated card number
-      const cardMatch = extractCardMatch(cardName, url, cardNumber)
-      console.log('🔍 Card match result:', cardMatch)
-      
-      if (!cardMatch) {
-        throw new Error('Could not extract card information from URL')
-      }
-
       // 2. Scrape card data OUTSIDE transaction
       console.log('🔍 Scraping card data...')
       const sourceData = await this.scrapeCardData(url)
       console.log('🔍 Scraped data:', sourceData)
       
-      // 3. Extract card number from scraped data if available
+      // 3. Use scraped card name if available, otherwise use URL-extracted name
+      let finalCardName = cardName
+      if (sourceData && sourceData.name && typeof sourceData.name === 'string') {
+        finalCardName = sourceData.name
+        console.log('🔍 Using card name from scraped data:', finalCardName)
+      } else {
+        console.log('🔍 Using card name from URL:', finalCardName)
+      }
+      
+      // 4. Extract card number from scraped data if available
       if (sourceData && sourceData.cardNumber && typeof sourceData.cardNumber === 'string') {
         // Use the card number extracted from H1 element
         cardNumber = sourceData.cardNumber
@@ -229,6 +230,14 @@ export class CardService {
         }
       }
       
+      // 5. Extract card match with final card name and updated card number
+      const cardMatch = extractCardMatch(finalCardName, url, cardNumber)
+      console.log('🔍 Card match result:', cardMatch)
+      
+      if (!cardMatch) {
+        throw new Error('Could not extract card information from URL')
+      }
+      
       // Validate scraped data
       if (!sourceData || typeof sourceData !== 'object') {
         throw new Error('Failed to scrape card data - no data returned')
@@ -238,7 +247,7 @@ export class CardService {
         throw new Error('Failed to scrape card data - missing sourceType')
       }
 
-      // 3. Now do database operations in transaction
+      // 6. Now do database operations in transaction
       return await prisma.$transaction(async (tx) => {
         try {
           console.log('🔍 Starting transaction')
