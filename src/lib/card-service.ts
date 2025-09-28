@@ -797,6 +797,64 @@ export class CardService {
     
     return pricing
   }
+
+  /**
+   * Refresh multiple cards for a specific profile
+   */
+  async refreshCards(cardIds: string[], profileId: string): Promise<{ refreshed: number; errors: string[] }> {
+    console.log(`🔄 Refreshing ${cardIds.length} cards for profile ${profileId}`)
+    
+    const errors: string[] = []
+    let refreshed = 0
+    
+    for (const cardId of cardIds) {
+      try {
+        await this.refreshCard(cardId)
+        refreshed++
+        console.log(`✅ Refreshed card ${cardId}`)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        errors.push(`Card ${cardId}: ${errorMessage}`)
+        console.error(`❌ Failed to refresh card ${cardId}:`, error)
+      }
+    }
+    
+    console.log(`🔄 Refresh completed: ${refreshed}/${cardIds.length} cards refreshed`)
+    return { refreshed, errors }
+  }
+
+  /**
+   * Get all cards for daily refresh (with profile information)
+   */
+  async getAllCardsForRefresh(): Promise<Array<{ id: string; profileId: string; name: string; No: string | null }>> {
+    console.log('🔍 Fetching all cards for daily refresh...')
+    
+    const cards = await prisma.card.findMany({
+      select: {
+        id: true,
+        name: true,
+        No: true,
+        userCards: {
+          select: {
+            userId: true
+          }
+        }
+      }
+    })
+    
+    // Flatten the userCards relationship to get profile IDs
+    const cardsWithProfiles = cards.flatMap(card => 
+      card.userCards.map(userCard => ({
+        id: card.id,
+        profileId: userCard.userId,
+        name: card.name,
+        No: card.No
+      }))
+    )
+    
+    console.log(`🔍 Found ${cardsWithProfiles.length} cards across all profiles`)
+    return cardsWithProfiles
+  }
 }
 
 export const cardService = new CardService()

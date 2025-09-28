@@ -8,31 +8,26 @@ datasource db {
 }
 
 model Profile {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-
-  // Relations
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
   userCards UserCard[]
 
   @@map("profiles")
 }
 
 model Card {
-  id          String   @id @default(cuid())
-  name        String
-  setDisplay   String?
-  No          String?
-  rarity       String?
-  imageUrl     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String       @id @default(cuid())
+  name       String
+  setDisplay String?
+  No         String?
+  rarity     String?
+  imageUrl   String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  sources    CardSource[]
+  userCards  UserCard[]
 
-  // Relations
-  sources  CardSource[]
-  userCards UserCard[]
-
-  // Indexes
   @@index([name])
   @@index([No])
   @@index([name, No])
@@ -40,22 +35,19 @@ model Card {
 }
 
 model CardSource {
-  id             String    @id @default(cuid())
-  cardId         String
-  sourceType     String    // 'tcgplayer' or 'pricecharting'
-  url            String
-  productId      String?
-  currency       String    @default("USD")
-  lastCheckedAt  DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String         @id @default(cuid())
+  cardId        String
+  sourceType    String
+  url           String
+  productId     String?
+  currency      String         @default("USD")
+  lastCheckedAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  prices        CardPrice[]
+  card          Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  priceHistory  PriceHistory[]
 
-  // Relations
-  card         Card          @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  prices       CardPrice[]
-  priceHistory PriceHistory[]
-
-  // Constraints
   @@unique([cardId, sourceType])
   @@index([cardId])
   @@index([sourceType])
@@ -63,17 +55,14 @@ model CardSource {
 }
 
 model CardPrice {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   sourceId  String
-  priceType String   // 'market', 'ungraded', 'grade7', 'grade8', 'grade9', 'grade95', 'grade10'
-  price     Decimal  @db.Decimal(10, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  priceType String
+  price     Decimal    @db.Decimal(10, 2)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  source    CardSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
-  // Relations
-  source CardSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  // Constraints
   @@unique([sourceId, priceType])
   @@index([sourceId])
   @@index([priceType])
@@ -81,33 +70,27 @@ model CardPrice {
 }
 
 model PriceHistory {
-  id        String    @id @default(cuid())
+  id        String     @id @default(cuid())
   sourceId  String
   priceType String
-  oldPrice  Decimal?  @db.Decimal(10, 2)
-  newPrice  Decimal?  @db.Decimal(10, 2)
-  changedAt DateTime  @default(now())
+  oldPrice  Decimal?   @db.Decimal(10, 2)
+  newPrice  Decimal?   @db.Decimal(10, 2)
+  changedAt DateTime   @default(now())
+  source    CardSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
-  // Relations
-  source CardSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  // Indexes
   @@index([sourceId])
   @@index([changedAt])
   @@map("price_history")
 }
 
 model UserCard {
-  id       String @id @default(cuid())
-  userId   String
-  cardId   String
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
   createdAt DateTime @default(now())
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user      Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relations
-  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
-
-  // Constraints
   @@unique([userId, cardId])
   @@index([userId])
   @@index([cardId])
