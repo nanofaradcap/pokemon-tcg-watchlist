@@ -1,0 +1,60 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    # Runs every day at 08:00 UTC
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Create database snapshots
+    runs-on: ubuntu-latest
+    env:
+      SCHEMA_VERSION: ${{ vars.SCHEMA_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Compute timestamp
+        id: timestamp
+        run: echo "utc=$(date -u +'%Y-%m-%dT%H-%M-%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate structured JSON backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_OUTPUT_DIR: ${{ github.workspace }}/backups/json
+          BACKUP_TIMESTAMP: ${{ steps.timestamp.outputs.utc }}
+          SCHEMA_VERSION: ${{ env.SCHEMA_VERSION }}
+        run: npm run backup:json
+
+      - name: Create SQL dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TIMESTAMP: ${{ steps.timestamp.outputs.utc }}
+        run: |
+          mkdir -p backups/sql
+          pg_dump "$DATABASE_URL" --no-owner --no-privileges > "backups/sql/backup-$TIMESTAMP.sql"
+
+      - name: Package backups
+        run: |
+          tar -czf database-backup-${{ steps.timestamp.outputs.utc }}.tar.gz backups
+
+      - name: Upload backup artifact (retained 30 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ steps.timestamp.outputs.utc }}
+          path: database-backup-${{ steps.timestamp.outputs.utc }}.tar.gz
+          retention-days: 30

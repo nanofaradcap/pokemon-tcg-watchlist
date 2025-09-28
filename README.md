@@ -65,3 +65,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+## Automated Backups
+
+A scheduled GitHub Action (`.github/workflows/database-backup.yml`) creates daily database snapshots and retains them for 30 days. Each run produces both a structured JSON export (compatible with `restore_database.js`) and a PostgreSQL `pg_dump` SQL file.
+
+To enable the workflow:
+
+1. Add `DATABASE_URL` as a repository secret (Settings → Secrets and variables → Actions).
+2. (Optional) Add a repository variable `SCHEMA_VERSION` to label exported snapshots.
+3. Leave the workflow enabled; it runs every day at 08:00 UTC and uploads the compressed backups as build artifacts with 30-day retention. You can also trigger a manual backup via the *Run workflow* button in GitHub.

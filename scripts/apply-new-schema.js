@@ -1,6 +1,5 @@
-const { PrismaClient } = require('@prisma/client')
-
 async function applyNewSchema() {
+  const { PrismaClient } = await import('@prisma/client')
   console.log('Applying new database schema...')
   
   const prisma = new PrismaClient()
@@ -102,7 +101,10 @@ async function applyNewSchema() {
 
 // Run if called directly
 if (require.main === module) {
-  applyNewSchema().catch(console.error)
+  applyNewSchema().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
 }
 
 module.exports = { applyNewSchema }

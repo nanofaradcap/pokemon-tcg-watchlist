@@ -1,22 +1,22 @@
-const { PrismaClient } = require('@prisma/client')
-
-const oldPrisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL
-    }
-  }
-})
-
-const newPrisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL
-    }
-  }
-})
-
 async function migrateData() {
+  const { PrismaClient } = await import('@prisma/client')
+
+  const oldPrisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  })
+
+  const newPrisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  })
+
   console.log('Starting data migration...')
   
   try {
@@ -131,4 +131,9 @@ async function migrateData() {
 }
 
 // Run migration
-migrateData().catch(console.error)
+migrateData().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+
+module.exports = { migrateData }

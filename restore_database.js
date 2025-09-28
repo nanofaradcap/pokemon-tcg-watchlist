@@ -1,13 +1,22 @@
-const { PrismaClient } = require('@prisma/client')
-const fs = require('fs')
-const path = require('path')
+(async () => {
+  const [{ PrismaClient }, fs, path, dotenv] = await Promise.all([
+    import('@prisma/client'),
+    import('node:fs'),
+    import('node:path'),
+    import('dotenv'),
+  ])
 
-// Load environment variables
-require('dotenv').config({ path: '.env.local' })
+  const envFiles = ['.env', '.env.local']
+  for (const envFile of envFiles) {
+    const envPath = path.join(process.cwd(), envFile)
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath })
+    }
+  }
 
-async function restoreDatabase(backupFile) {
-  const prisma = new PrismaClient()
-  
+  async function restoreDatabase(backupFile) {
+    const prisma = new PrismaClient()
+    
   try {
     console.log('🔄 Starting database restore...')
     
@@ -87,18 +96,19 @@ async function restoreDatabase(backupFile) {
   } finally {
     await prisma.$disconnect()
   }
-}
+  }
 
-// Get backup file from command line argument
-const backupFile = process.argv[2]
+  // Get backup file from command line argument
+  const backupFile = process.argv[2]
 
-// Run restore
-restoreDatabase(backupFile)
-  .then(() => {
-    console.log('\n🎉 Database restored successfully!')
-    process.exit(0)
-  })
-  .catch((error) => {
-    console.error('💥 Restore failed:', error)
-    process.exit(1)
-  })
+  // Run restore
+  restoreDatabase(backupFile)
+    .then(() => {
+      console.log('\n🎉 Database restored successfully!')
+      process.exit(0)
+    })
+    .catch((error) => {
+      console.error('💥 Restore failed:', error)
+      process.exit(1)
+    })
+})()

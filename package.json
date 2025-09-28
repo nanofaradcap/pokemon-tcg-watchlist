@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
+    "backup:json": "node scripts/backup-database.js",
     "deploy:vercel": "vercel --prod",
     "deploy:preview": "vercel"
   },
