@@ -27,7 +27,9 @@ jobs:
 
       - name: Download pg_dump 17
         run: |
-          curl -L -o pg_dump.tar.gz "https://github.com/neondatabase/pg_dump/releases/download/v17.3/pg_dump-ubuntu-latest-x64.tar.gz"
+          set -euo pipefail
+          curl -sSL -H "Accept: application/octet-stream" -o pg_dump.tar.gz "https://github.com/neondatabase/pg_dump/releases/download/v17.3/pg_dump-ubuntu-latest-x64.tar.gz"
+          file pg_dump.tar.gz
           tar -xzf pg_dump.tar.gz
           sudo mv pg_dump/bin/pg_dump /usr/local/bin/pg_dump
           sudo chmod +x /usr/local/bin/pg_dump
