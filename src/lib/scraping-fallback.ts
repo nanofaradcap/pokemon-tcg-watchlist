@@ -4,7 +4,7 @@ export interface ScrapedData {
   productId: string
   name: string
   setDisplay?: string
-  jpNo?: string
+  No?: string
   rarity?: string
   imageUrl?: string
   marketPrice?: number
@@ -53,10 +53,10 @@ export async function scrapeWithFallback(url: string, productId: string): Promis
   }
 
   // Extract card number from URL
-  let jpNo: string | undefined
+  let No: string | undefined
   const numberMatch = url.match(/(\d{3})-(\d{3})/)
   if (numberMatch) {
-    jpNo = `${numberMatch[1]}/${numberMatch[2]}`
+    No = `${numberMatch[1]}/${numberMatch[2]}`
   }
 
   // Try to extract rarity from URL patterns
@@ -79,7 +79,7 @@ export async function scrapeWithFallback(url: string, productId: string): Promis
     productId,
     name,
     setDisplay,
-    jpNo,
+    No,
     rarity,
     imageUrl: `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`,
     marketPrice: undefined, // Can't extract without JS

@@ -16,7 +16,7 @@ interface CardRow {
   productId: string
   name: string
   setDisplay?: string
-  jpNo?: string
+  No?: string
   rarity?: string
   imageUrl?: string
   marketPrice?: number

@@ -22,7 +22,7 @@ model Card {
   id          String   @id @default(cuid())
   name        String
   setDisplay   String?
-  jpNo         String?
+  No          String?
   rarity       String?
   imageUrl     String?
   createdAt    DateTime @default(now())
@@ -34,8 +34,8 @@ model Card {
 
   // Indexes
   @@index([name])
-  @@index([jpNo])
-  @@index([name, jpNo])
+  @@index([No])
+  @@index([name, No])
   @@map("cards")
 }
 

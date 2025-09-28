@@ -50,7 +50,7 @@ export async function GET() {
         grade9Price ? `$${Number(grade9Price).toFixed(2)}` : '—',
         grade10Price ? `$${Number(grade10Price).toFixed(2)}` : '—',
         card.setDisplay || '—',
-        card.jpNo || '—',
+        card.No || '—',
         sources
       ]
     })

@@ -10,7 +10,7 @@ export interface CardWithSources {
   id: string
   name: string
   setDisplay: string | null
-  jpNo: string | null
+  No: string | null
   rarity: string | null
   imageUrl: string | null
   createdAt: Date
@@ -69,7 +69,7 @@ export interface CardDisplayData {
   grade95Price?: number
   grade10Price?: number
   setDisplay?: string
-  jpNo?: string
+  No?: string
   rarity?: string
   imageUrl?: string
   lastCheckedAt?: Date
@@ -216,16 +216,16 @@ export class CardService {
       console.log('🔍 Scraped data:', sourceData)
       
       // 3. Extract card number from scraped data if available
-      if (sourceData && sourceData.cardNumber) {
+      if (sourceData && sourceData.cardNumber && typeof sourceData.cardNumber === 'string') {
         // Use the card number extracted from H1 element
         cardNumber = sourceData.cardNumber
         console.log('🔍 Using card number from H1 element:', cardNumber)
-      } else if (sourceData && sourceData.jpNo) {
-        // Fallback: Extract number from jpNo (e.g., "112/101" -> "112")
-        const jpNoMatch = sourceData.jpNo.match(/^(\d+)\/\d+$/)
+      } else if (sourceData && sourceData.No && typeof sourceData.No === 'string') {
+        // Fallback: Extract number from No (e.g., "112/101" -> "112")
+        const jpNoMatch = sourceData.No.match(/^(\d+)\/\d+$/)
         if (jpNoMatch) {
           cardNumber = jpNoMatch[1]
-          console.log('🔍 Using card number from jpNo:', cardNumber)
+          console.log('🔍 Using card number from No:', cardNumber)
         }
       }
       
@@ -399,7 +399,7 @@ export class CardService {
       // Use the improved card matching logic
       const existingCardMatch = {
         name: card.name,
-        number: card.jpNo || ''
+        number: card.No || ''
       }
       
       return areCardsSame(existingCardMatch, cardMatch)
@@ -413,16 +413,17 @@ export class CardService {
     existingCard: CardWithSources, 
     newUrl: string, 
     profileId: string,
-    newSourceData: Record<string, any>
+    newSourceData: Record<string, unknown>
   ): Promise<CardWithSources> {
     // 1. Use pre-scraped data (no need to scrape again)
     
     // 2. Check if source already exists
+    const sourceType = typeof newSourceData.sourceType === 'string' ? newSourceData.sourceType : 'unknown'
     const existingSource = await tx.cardSource.findUnique({
       where: {
         cardId_sourceType: {
           cardId: existingCard.id,
-          sourceType: newSourceData.sourceType
+          sourceType: sourceType
         }
       }
     })
@@ -463,7 +464,7 @@ export class CardService {
     cardMatch: CardMatch, 
     url: string, 
     profileId: string,
-    sourceData: Record<string, any>
+    sourceData: Record<string, unknown>
   ): Promise<CardWithSources> {
     console.log('🔍 createNewCard called with:', { cardMatch, url, profileId })
     // 1. Use pre-scraped data (no need to scrape again)
@@ -474,10 +475,10 @@ export class CardService {
     const card = await tx.card.create({
       data: {
         name: cardMatch.name, // Use the card match name, not the scraped data name
-        setDisplay: sourceData.setDisplay,
-        jpNo: cardMatch.number,
-        rarity: sourceData.rarity,
-        imageUrl: sourceData.imageUrl
+        setDisplay: typeof sourceData.setDisplay === 'string' ? sourceData.setDisplay : undefined,
+        No: cardMatch.number,
+        rarity: typeof sourceData.rarity === 'string' ? sourceData.rarity : undefined,
+        imageUrl: typeof sourceData.imageUrl === 'string' ? sourceData.imageUrl : undefined
       }
     })
     console.log('🔍 Card created with ID:', card.id)
@@ -501,7 +502,7 @@ export class CardService {
     return newCard
   }
 
-  private async createCardSource(tx: PrismaTransaction, cardId: string, sourceData: Record<string, any>): Promise<void> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  private async createCardSource(tx: PrismaTransaction, cardId: string, sourceData: Record<string, unknown>): Promise<void> {
     // Validate sourceData
     if (!sourceData || typeof sourceData !== 'object') {
       throw new Error('Invalid sourceData provided to createCardSource')
@@ -510,10 +511,10 @@ export class CardService {
     const source = await tx.cardSource.create({
       data: {
         cardId: cardId,
-        sourceType: sourceData.sourceType || 'unknown',
-        url: sourceData.url || '',
-        productId: sourceData.productId || '',
-        currency: sourceData.currency || 'USD',
+        sourceType: typeof sourceData.sourceType === 'string' ? sourceData.sourceType : 'unknown',
+        url: typeof sourceData.url === 'string' ? sourceData.url : '',
+        productId: typeof sourceData.productId === 'string' ? sourceData.productId : '',
+        currency: typeof sourceData.currency === 'string' ? sourceData.currency : 'USD',
         lastCheckedAt: new Date()
       }
     })
@@ -531,7 +532,7 @@ export class CardService {
     }
   }
 
-  private async updateCardSource(tx: PrismaTransaction, sourceId: string, sourceData: Record<string, any>): Promise<void> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  private async updateCardSource(tx: PrismaTransaction, sourceId: string, sourceData: Record<string, unknown>): Promise<void> {
     // Validate sourceData
     if (!sourceData || typeof sourceData !== 'object') {
       throw new Error('Invalid sourceData provided to updateCardSource')
@@ -541,9 +542,9 @@ export class CardService {
     await tx.cardSource.update({
       where: { id: sourceId },
       data: {
-        url: sourceData.url || '',
-        productId: sourceData.productId || '',
-        currency: sourceData.currency || 'USD',
+        url: typeof sourceData.url === 'string' ? sourceData.url : '',
+        productId: typeof sourceData.productId === 'string' ? sourceData.productId : '',
+        currency: typeof sourceData.currency === 'string' ? sourceData.currency : 'USD',
         lastCheckedAt: new Date()
       }
     })
@@ -570,7 +571,7 @@ export class CardService {
     }
   }
 
-  private async refreshCardSource(tx: PrismaTransaction, sourceId: string, sourceData: Record<string, any>): Promise<void> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  private async refreshCardSource(tx: PrismaTransaction, sourceId: string, sourceData: Record<string, unknown>): Promise<void> {
     // Validate sourceData
     if (!sourceData || typeof sourceData !== 'object') {
       throw new Error('Invalid sourceData provided to refreshCardSource')
@@ -621,7 +622,7 @@ export class CardService {
     return card
   }
 
-  private async scrapeCardData(url: string): Promise<Record<string, any>> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  private async scrapeCardData(url: string): Promise<Record<string, unknown>> {
     // Validate URL
     if (!url || typeof url !== 'string') {
       throw new Error('Invalid URL provided to scrapeCardData')
@@ -673,34 +674,34 @@ export class CardService {
     }
   }
 
-  private extractPrices(sourceData: Record<string, any>): Array<{ priceType: string; price: number }> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  private extractPrices(sourceData: Record<string, unknown>): Array<{ priceType: string; price: number }> {
     // Validate sourceData
     if (!sourceData || typeof sourceData !== 'object') {
       console.warn('Invalid sourceData provided to extractPrices:', sourceData)
       return []
     }
     
-    const prices = []
+    const prices: Array<{ priceType: string; price: number }> = []
     
-    if (sourceData.marketPrice) {
+    if (typeof sourceData.marketPrice === 'number') {
       prices.push({ priceType: 'market', price: sourceData.marketPrice })
     }
-    if (sourceData.ungradedPrice) {
+    if (typeof sourceData.ungradedPrice === 'number') {
       prices.push({ priceType: 'ungraded', price: sourceData.ungradedPrice })
     }
-    if (sourceData.grade7Price) {
+    if (typeof sourceData.grade7Price === 'number') {
       prices.push({ priceType: 'grade7', price: sourceData.grade7Price })
     }
-    if (sourceData.grade8Price) {
+    if (typeof sourceData.grade8Price === 'number') {
       prices.push({ priceType: 'grade8', price: sourceData.grade8Price })
     }
-    if (sourceData.grade9Price) {
+    if (typeof sourceData.grade9Price === 'number') {
       prices.push({ priceType: 'grade9', price: sourceData.grade9Price })
     }
-    if (sourceData.grade95Price) {
+    if (typeof sourceData.grade95Price === 'number') {
       prices.push({ priceType: 'grade95', price: sourceData.grade95Price })
     }
-    if (sourceData.grade10Price) {
+    if (typeof sourceData.grade10Price === 'number') {
       prices.push({ priceType: 'grade10', price: sourceData.grade10Price })
     }
     
@@ -730,7 +731,7 @@ export class CardService {
       grade95Price: consolidatedPricing.grade95Price,
       grade10Price: consolidatedPricing.grade10Price,
       setDisplay: card.setDisplay ?? undefined,
-      jpNo: card.jpNo ?? undefined,
+      No: card.No ?? undefined,
       rarity: card.rarity ?? undefined,
       imageUrl: card.imageUrl ?? undefined,
       lastCheckedAt: card.sources.reduce((latest, source) => {

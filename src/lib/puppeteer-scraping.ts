@@ -38,7 +38,7 @@ export interface ScrapedData {
   productId: string
   name: string
   setDisplay?: string
-  jpNo?: string
+  No?: string
   cardNumber?: string
   rarity?: string
   imageUrl?: string
@@ -188,7 +188,7 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
 
       // JP Number extraction
       const jpNoMatch = document.body.textContent?.match(/\b\d{3}\/\d{3}\b/)
-      const jpNo = jpNoMatch?.[0] || ''
+      const No = jpNoMatch?.[0] || ''
 
       // Rarity extraction
       const rarityMatch = document.body.textContent?.match(/Rarity\s*[:|-]\s*([A-Za-z ]+)/i)
@@ -240,7 +240,8 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         marketPriceText,
         name,
         setDisplay,
-        jpNo,
+        No,
+        cardNumber,
         rarity,
         imageUrl,
       }
@@ -264,7 +265,7 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       productId,
       name: data.name || '',
       setDisplay: data.setDisplay || undefined,
-      jpNo: data.jpNo || undefined,
+      No: data.No || undefined,
       cardNumber: data.cardNumber || undefined,
       rarity: data.rarity || undefined,
       imageUrl,

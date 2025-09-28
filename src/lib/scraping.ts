@@ -5,7 +5,7 @@ export interface ScrapedData {
   productId: string
   name: string
   setDisplay?: string
-  jpNo?: string
+  No?: string
   rarity?: string
   imageUrl?: string
   marketPrice?: number
@@ -74,7 +74,7 @@ export async function scrapeWithPlaywright(url: string, productId: string): Prom
 
           // JP Number extraction
           const jpNoMatch = document.body.textContent?.match(/\b\d{3}\/\d{3}\b/)
-          const jpNo = jpNoMatch?.[0] || ''
+          const No = jpNoMatch?.[0] || ''
 
           // Rarity extraction
           const rarityMatch = document.body.textContent?.match(/Rarity\s*[:|-]\s*([A-Za-z ]+)/i)
@@ -108,7 +108,7 @@ export async function scrapeWithPlaywright(url: string, productId: string): Prom
             marketPriceText,
             name,
             setDisplay,
-            jpNo,
+            No,
             rarity,
             imageUrl
           }
@@ -132,7 +132,7 @@ export async function scrapeWithPlaywright(url: string, productId: string): Prom
           productId,
           name: data.name || '',
           setDisplay: data.setDisplay || undefined,
-          jpNo: data.jpNo ?? undefined,
+          No: data.No ?? undefined,
           rarity: data.rarity ?? undefined,
           imageUrl,
           marketPrice: marketPrice ?? undefined,
