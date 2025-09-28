@@ -25,15 +25,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install PostgreSQL client tools (v17)
+      - name: Download pg_dump 17
         run: |
-          sudo install -d /usr/share/keyrings
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
-          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-          sudo update-alternatives --install /usr/bin/pg_dump pg_dump /usr/lib/postgresql/17/bin/pg_dump 100
-          sudo update-alternatives --set pg_dump /usr/lib/postgresql/17/bin/pg_dump
+          curl -L -o pg_dump.tar.gz "https://github.com/neondatabase/pg_dump/releases/download/v17.3/pg_dump-ubuntu-latest-x64.tar.gz"
+          tar -xzf pg_dump.tar.gz
+          sudo mv pg_dump/bin/pg_dump /usr/local/bin/pg_dump
+          sudo chmod +x /usr/local/bin/pg_dump
+          rm -rf pg_dump pg_dump.tar.gz
 
       - name: Verify pg_dump version
         run: pg_dump --version
