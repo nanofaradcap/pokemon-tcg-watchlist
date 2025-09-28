@@ -59,7 +59,13 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to add card' },
+      { 
+        error: 'Failed to add card',
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        })
+      },
       { status: 500 }
     )
   }

@@ -100,16 +100,21 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   // Add card mutation
   const addCardMutation = useMutation({
     mutationFn: async (url: string) => {
+      console.log('🔍 Frontend: Starting add card mutation', { url, profile })
       const response = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, profile }),
       })
+      console.log('🔍 Frontend: Response received', { status: response.status, ok: response.ok })
       if (!response.ok) {
         const error = await response.json()
+        console.error('🔍 Frontend: Error response', error)
         throw new Error(error.error || 'Failed to add card')
       }
-      return response.json()
+      const data = await response.json()
+      console.log('🔍 Frontend: Success response', data)
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards', profile] })
@@ -127,7 +132,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       const response = await fetch('/api/cards/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ cardIds: [id], profile }),
       })
       if (!response.ok) {
         const error = await response.json()
@@ -154,7 +159,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       const response = await fetch('/api/cards/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: cards.map(card => card.id) }),
+        body: JSON.stringify({ profile }),
       })
       if (!response.ok) {
         const error = await response.json()
@@ -177,7 +182,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   // Delete card mutation
   const deleteCardMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/cards?id=${id}`, {
+      const response = await fetch(`/api/cards?id=${id}&profile=${profile}`, {
         method: 'DELETE',
       })
       if (!response.ok) {
@@ -412,7 +417,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                           <div className="absolute left-0 top-full mt-1 bg-background border border-border rounded-md shadow-lg z-50 min-w-[120px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                             {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
                               card.mergedUrls.map((url, index) => {
-                                const source = url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
+                                const source = url && typeof url === 'string' && url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
                                 return (
                                   <a
                                     key={index}
@@ -434,7 +439,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                                 className="block px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2 rounded-md"
                               >
                                 <ExternalLink className="h-3 w-3" />
-                                {card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'}
+                                {card.url && typeof card.url === 'string' && card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'}
                               </a>
                             )}
                           </div>

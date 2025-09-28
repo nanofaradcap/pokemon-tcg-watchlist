@@ -39,6 +39,7 @@ export interface ScrapedData {
   name: string
   setDisplay?: string
   jpNo?: string
+  cardNumber?: string
   rarity?: string
   imageUrl?: string
   marketPrice?: number
@@ -162,12 +163,22 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         }
       }
 
-      // Card name extraction
-      const nameElement = document.querySelector('h1[data-testid="product-detail__name"]') || 
+      // Card name extraction from H1 element
+      const nameElement = document.querySelector('h1[data-testid="lblProductDetailsProductName"]') ||
+                         document.querySelector('h1[data-testid="product-detail__name"]') || 
                          document.querySelector('h1') ||
                          document.querySelector('[class*="product-name"]') ||
                          document.querySelector('[class*="card-name"]')
       const name = nameElement?.textContent?.trim() || ''
+      
+      // Extract card number from H1 element (e.g., "Magikarp - 080/073 - SV1a: Triplet Beat (SV1a)")
+      let cardNumber = ''
+      if (name) {
+        const numberMatch = name.match(/- (\d+)\/\d+ -/)
+        if (numberMatch) {
+          cardNumber = numberMatch[1]
+        }
+      }
 
       // Set display extraction
       const setElement = document.querySelector('[data-testid="product-detail__set"]') ||
@@ -254,6 +265,7 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       name: data.name || '',
       setDisplay: data.setDisplay || undefined,
       jpNo: data.jpNo || undefined,
+      cardNumber: data.cardNumber || undefined,
       rarity: data.rarity || undefined,
       imageUrl,
       marketPrice: marketPrice || undefined,
