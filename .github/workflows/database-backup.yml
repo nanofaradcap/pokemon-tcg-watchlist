@@ -25,18 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Download pg_dump 17
-        run: |
-          set -euo pipefail
-          curl -sSL -H "Accept: application/octet-stream" -o pg_dump.tar.gz "https://github.com/neondatabase/pg_dump/releases/download/v17.3/pg_dump-ubuntu-latest-x64.tar.gz"
-          file pg_dump.tar.gz
-          tar -xzf pg_dump.tar.gz
-          sudo mv pg_dump/bin/pg_dump /usr/local/bin/pg_dump
-          sudo chmod +x /usr/local/bin/pg_dump
-          rm -rf pg_dump pg_dump.tar.gz
-
       - name: Verify pg_dump version
-        run: pg_dump --version
+        run: docker run --rm postgres:17-alpine pg_dump --version
 
       - name: Compute timestamp
         id: timestamp
@@ -56,7 +46,12 @@ jobs:
           TIMESTAMP: ${{ steps.timestamp.outputs.utc }}
         run: |
           mkdir -p backups/sql
-          pg_dump "$DATABASE_URL" --no-owner --no-privileges > "backups/sql/backup-$TIMESTAMP.sql"
+          docker run --rm \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e TIMESTAMP="$TIMESTAMP" \
+            -v "$PWD/backups/sql":/backup \
+            postgres:17-alpine \
+            sh -c 'pg_dump "$DATABASE_URL" --no-owner --no-privileges > "/backup/backup-$TIMESTAMP.sql"'
 
       - name: Package backups
         run: |
