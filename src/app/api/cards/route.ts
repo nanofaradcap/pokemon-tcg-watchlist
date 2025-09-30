@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cardService } from '@/lib/card-service'
 
-const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne'] as const
+const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor'] as const
 type Profile = typeof Profiles[number]
 
 const AddCardSchema = z.object({

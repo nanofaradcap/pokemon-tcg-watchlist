@@ -14,9 +14,9 @@ export default function WorkPage() {
               Track Pokémon card prices from TCGplayer and PriceCharting
             </p>
           </div>
-          <ProfilePills profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne']} />
+          <ProfilePills profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor']} />
         </div>
-        <Watchlist profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne']} />
+        <Watchlist profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor']} />
       </div>
     </div>
   )

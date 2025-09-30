@@ -43,5 +43,3 @@ export function ProfilePills({ profiles = defaultProfiles }: ProfilePillsProps) 
     </div>
   )
 }
-
-
