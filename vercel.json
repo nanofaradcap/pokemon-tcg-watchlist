@@ -8,9 +8,6 @@
   "functions": {
     "src/app/api/**/*.ts": {
       "maxDuration": 30
-    },
-    "src/app/api/refresh-daily/route.ts": {
-      "maxDuration": 300
     }
   },
   "crons": [
