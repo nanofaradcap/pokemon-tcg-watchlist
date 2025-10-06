@@ -44,6 +44,7 @@ export interface CardPrice {
 export interface CardDisplayData {
   id: string
   name: string
+  url: string
   isMerged: boolean
   sourceCount: number
   sources: Array<{
@@ -723,6 +724,7 @@ export class CardService {
     return {
       id: card.id,
       name: card.name,
+      url: card.sources[0]?.url || '',
       isMerged: card.sources.length > 1,
       sourceCount: card.sources.length,
       sources: card.sources.map(s => ({
