@@ -7,10 +7,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔄 Starting minimal daily refresh...')
     
-    // Just update the lastRefreshed timestamp without actually scraping
+    // Just update the updatedAt timestamp without actually scraping
     const updatedCards = await prisma.card.updateMany({
       data: {
-        lastRefreshed: new Date()
+        updatedAt: new Date()
       }
     })
     
