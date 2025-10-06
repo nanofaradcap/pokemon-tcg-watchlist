@@ -1,0 +1,19 @@
+[2025-10-06T05:10:34.183Z] [INFO] 🚀 Starting test batcher
+[2025-10-06T05:10:34.185Z] [INFO] Configuration: batchSize=3, delay=2000ms
+[2025-10-06T05:10:34.185Z] [INFO] Fetching all cards for testing...
+[2025-10-06T05:10:34.216Z] [ERROR] 💥 Fatal error during test: 
+Invalid `prisma.card.findMany()` invocation in
+/Users/czhao/pokemon-tcg-watchlist/scripts/test-batcher.js:39:37
+
+  36 async getAllCards() {
+  37   this.log('Fetching all cards for testing...')
+  38   
+→ 39   const cards = await prisma.card.findMany(
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1

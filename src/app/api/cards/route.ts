@@ -71,23 +71,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH /api/cards - Update card fields
-export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json()
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id: _id, ..._updates } = body
-
-    // This would need to be implemented in the card service
-    return NextResponse.json({ error: 'Not implemented yet' }, { status: 501 })
-  } catch (error) {
-    console.error('Error updating card:', error)
-    return NextResponse.json(
-      { error: 'Failed to update card' },
-      { status: 500 }
-    )
-  }
-}
 
 // DELETE /api/cards - Delete a card
 export async function DELETE(req: NextRequest) {

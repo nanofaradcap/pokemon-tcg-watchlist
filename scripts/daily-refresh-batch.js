@@ -7,13 +7,13 @@ const fs = require('fs')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require('path')
 
-// Import scraping functions
+// Import scraping functions from compiled dist
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { scrapeWithPuppeteer } = require('../src/lib/puppeteer-scraping')
+const { scrapeWithPuppeteer } = require('../dist/lib/puppeteer-scraping')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { scrapePriceCharting } = require('../src/lib/pricecharting-scraping')
+const { scrapePriceCharting } = require('../dist/lib/pricecharting-scraping')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { scrapeWithFallback } = require('../src/lib/scraping-fallback')
+const { scrapeWithFallback } = require('../dist/lib/scraping-fallback')
 
 const prisma = new PrismaClient()
 

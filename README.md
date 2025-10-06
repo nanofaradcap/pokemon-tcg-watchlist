@@ -68,7 +68,7 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 ## Automated Backups
 
-A scheduled GitHub Action (`.github/workflows/database-backup.yml`) creates daily database snapshots and retains them for 30 days. Each run produces both a structured JSON export (compatible with `restore_database.js`) and a PostgreSQL `pg_dump` SQL file.
+A scheduled GitHub Action (`.github/workflows/database-backup.yml`) creates daily database snapshots and retains them for 30 days. Each run produces both a structured JSON export and a PostgreSQL `pg_dump` SQL file.
 
 To enable the workflow:
 
