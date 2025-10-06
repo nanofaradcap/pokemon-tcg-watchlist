@@ -36,11 +36,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run database migration
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npx prisma db push
-
       - name: Refresh cards with smart batching
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
