@@ -1,0 +1,58 @@
+name: Daily Card Refresh
+
+on:
+  schedule:
+    # Runs every day at 6:00 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Number of cards to process per batch'
+        required: false
+        default: '5'
+        type: string
+      delay_minutes:
+        description: 'Delay between batches in minutes'
+        required: false
+        default: '2'
+        type: string
+
+jobs:
+  refresh-cards:
+    name: Refresh card prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours max
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma db push
+
+      - name: Refresh cards with smart batching
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BATCH_SIZE: ${{ inputs.batch_size || '5' }}
+          DELAY_MINUTES: ${{ inputs.delay_minutes || '2' }}
+          NODE_ENV: production
+        run: node scripts/daily-refresh-batch.js
+
+      - name: Upload refresh logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refresh-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7

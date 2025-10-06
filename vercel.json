@@ -12,7 +12,7 @@
   },
   "crons": [
     {
-      "path": "/api/refresh-daily",
+      "path": "/api/trigger-github-action",
       "schedule": "0 6 * * *"
     }
   ]
