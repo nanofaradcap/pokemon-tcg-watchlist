@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         'Set up a GitHub Action to run daily',
         'Use a service like Zapier or Make.com to trigger the refresh',
         'Implement a queue system with a service like Bull or Agenda',
-        'Use Vercel's background functions (if available)'
+        'Use Vercel background functions (if available)'
       ],
       timestamp: new Date().toISOString()
     })
