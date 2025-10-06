@@ -36,13 +36,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build project
+        run: npm run build
+
       - name: Refresh cards with smart batching
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BATCH_SIZE: ${{ inputs.batch_size || '5' }}
           DELAY_MINUTES: ${{ inputs.delay_minutes || '2' }}
           NODE_ENV: production
-        run: node scripts/daily-refresh-batch-simple.js
+        run: node scripts/daily-refresh-batch.js
 
       - name: Upload refresh logs
         if: always()
