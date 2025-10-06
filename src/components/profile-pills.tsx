@@ -35,7 +35,8 @@ export function ProfilePills({ profiles = defaultProfiles }: ProfilePillsProps) 
         {profiles.map((p) => (
           <div
             key={p}
-            className="h-9 w-16 animate-pulse rounded-md bg-muted"
+            className="h-9 px-3 py-2 animate-pulse rounded-md bg-muted border"
+            style={{ width: `${p.length * 8 + 24}px` }} // Approximate width based on text length
           />
         ))}
       </div>
