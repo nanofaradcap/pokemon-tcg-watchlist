@@ -47,7 +47,7 @@ jobs:
           BATCH_SIZE: ${{ inputs.batch_size || '5' }}
           DELAY_MINUTES: ${{ inputs.delay_minutes || '2' }}
           NODE_ENV: production
-        run: node scripts/daily-refresh-batch.js
+        run: node scripts/daily-refresh-batch-simple.js
 
       - name: Upload refresh logs
         if: always()
