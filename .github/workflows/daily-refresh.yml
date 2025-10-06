@@ -39,6 +39,9 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Compile lib files for scripts
+        run: npx tsc --project tsconfig.lib.json
+
       - name: Refresh cards with smart batching
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -1,0 +1,19 @@
+[2025-10-06T05:30:34.641Z] [INFO] 🚀 Starting daily card refresh with smart batching
+[2025-10-06T05:30:34.643Z] [INFO] Configuration: batchSize=5, delay=2min
+[2025-10-06T05:30:34.643Z] [INFO] Fetching all cards for refresh...
+[2025-10-06T05:30:34.672Z] [ERROR] 💥 Fatal error during refresh: 
+Invalid `prisma.card.findMany()` invocation in
+/Users/czhao/pokemon-tcg-watchlist/scripts/daily-refresh-batch.js:48:37
+
+  45 async getAllCards() {
+  46   this.log('Fetching all cards for refresh...')
+  47   
+→ 48   const cards = await prisma.card.findMany(
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:7
+   | 
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
