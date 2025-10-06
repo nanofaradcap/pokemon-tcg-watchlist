@@ -3,7 +3,7 @@ import { CardService } from '@/lib/card-service'
 
 const cardService = new CardService()
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const startTime = Date.now()
   const BATCH_SIZE = 5 // Process cards in smaller batches to avoid timeouts
   const MAX_CARDS_PER_PROFILE = 20 // Limit cards per profile to prevent timeout

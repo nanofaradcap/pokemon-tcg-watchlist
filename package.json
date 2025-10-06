@@ -7,13 +7,16 @@
     "build": "prisma generate && next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "type-check": "tsc --noEmit",
+    "pre-deploy": "./scripts/pre-deploy-check.sh",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
     "backup:json": "node scripts/backup-database.js",
-    "deploy:vercel": "vercel --prod",
-    "deploy:preview": "vercel"
+    "deploy:vercel": "npm run pre-deploy && vercel --prod",
+    "deploy:preview": "npm run pre-deploy && vercel"
   },
   "dependencies": {
     "@playwright/test": "^1.55.0",

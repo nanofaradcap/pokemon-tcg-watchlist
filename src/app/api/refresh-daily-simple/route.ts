@@ -3,7 +3,7 @@ import { CardService } from '@/lib/card-service'
 
 const cardService = new CardService()
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const startTime = Date.now()
   
   try {
