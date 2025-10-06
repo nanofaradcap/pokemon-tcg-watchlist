@@ -331,7 +331,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       </div>
 
       {/* Cards Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -339,7 +339,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
               <TableHead>
                 <button
                   type="button"
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 p-2 -m-2 rounded hover:bg-accent transition-colors"
                   onClick={() => toggleSort('name')}
                 >
                   Card
@@ -351,7 +351,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
               <TableHead className="w-24">
                 <button
                   type="button"
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 p-2 -m-2 rounded hover:bg-accent transition-colors"
                   onClick={() => toggleSort('marketPrice')}
                 >
                   TCG Price
@@ -410,39 +410,34 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                     <div className="font-medium">
                       <div className="flex items-center gap-2">
                         <span className="text-blue-600 dark:text-blue-400">{card.name}</span>
-                        <div className="relative group">
-                          <button className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground rounded flex items-center justify-center transition-colors">
-                            <ExternalLink className="h-3 w-3" />
-                          </button>
-                          <div className="absolute left-0 top-full mt-1 bg-background border border-border rounded-md shadow-lg z-50 min-w-[120px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                            {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
-                              card.mergedUrls.map((url, index) => {
-                                const source = url && typeof url === 'string' && url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
-                                return (
-                                  <a
-                                    key={index}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2 first:rounded-t-md last:rounded-b-md"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    {source}
-                                  </a>
-                                )
-                              })
-                            ) : (
-                              <a
-                                href={card.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2 rounded-md"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                {card.url && typeof card.url === 'string' && card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'}
-                              </a>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-1">
+                          {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
+                            card.mergedUrls.map((url, index) => {
+                              const source = url && typeof url === 'string' && url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
+                              return (
+                                <a
+                                  key={index}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  {source}
+                                </a>
+                              )
+                            })
+                          ) : (
+                            <a
+                              href={card.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {card.url && typeof card.url === 'string' && card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'}
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -472,30 +467,35 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                     {formatPrice(card.grade10Price)}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleRefreshCard(card.id)}
-                          disabled={refreshCardMutation.isPending}
-                        >
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Refresh
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteCard(card.id)}
-                          disabled={deleteCardMutation.isPending}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshCard(card.id)}
+                        disabled={refreshCardMutation.isPending}
+                        className="h-8 w-8 p-0"
+                        title="Refresh card"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${refreshCardMutation.isPending ? 'animate-spin' : ''}`} />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="More actions">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteCard(card.id)}
+                            disabled={deleteCardMutation.isPending}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
