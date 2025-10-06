@@ -50,22 +50,25 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>('compact')
   const [sortKey, setSortKey] = useState<'name' | 'marketPrice'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [profile, setProfile] = useState<string>(() => {
-    // Initialize from localStorage if available, otherwise use first profile
-    if (typeof window !== 'undefined') {
-      const savedProfile = window.localStorage.getItem('watchlist:profile')
-      if (savedProfile && profiles.includes(savedProfile)) {
-        return savedProfile
-      }
-    }
-    return profiles[0]
-  })
+  const [profile, setProfile] = useState<string>(profiles[0])
+  const [isClient, setIsClient] = useState(false)
   const queryClient = useQueryClient()
 
-  // Persist view mode
+  // Initialize client-side state and load from localStorage
   useEffect(() => {
-    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:viewMode') : null
-    if (saved === 'compact' || saved === 'expanded') setViewMode(saved)
+    setIsClient(true)
+    
+    // Load view mode
+    const savedViewMode = window.localStorage.getItem('watchlist:viewMode')
+    if (savedViewMode === 'compact' || savedViewMode === 'expanded') {
+      setViewMode(savedViewMode)
+    }
+    
+    // Load profile
+    const savedProfile = window.localStorage.getItem('watchlist:profile')
+    if (savedProfile && profiles.includes(savedProfile)) {
+      setProfile(savedProfile)
+    }
 
     const onProfileChange = (e: Event) => {
       const detail = (e as CustomEvent).detail
@@ -94,7 +97,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
     }
   }, [profile])
 
-  // Fetch cards
+  // Fetch cards (only on client side to prevent hydration mismatch)
   const { data: cards = [], isLoading } = useQuery<CardRow[]>({
     queryKey: ['cards', profile],
     queryFn: async () => {
@@ -102,6 +105,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       if (!response.ok) throw new Error('Failed to fetch cards')
       return response.json()
     },
+    enabled: isClient, // Only run query when we're on the client side
   })
 
   // Add card mutation
@@ -284,7 +288,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
     }
   }
 
-  if (isLoading) {
+  if (!isClient || isLoading) {
     return <WatchlistSkeleton />
   }
 
