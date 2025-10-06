@@ -94,5 +94,6 @@ model UserCard {
   @@unique([userId, cardId])
   @@index([userId])
   @@index([cardId])
+  @@index([userId, cardId]) // Composite index for main query
   @@map("user_cards")
 }

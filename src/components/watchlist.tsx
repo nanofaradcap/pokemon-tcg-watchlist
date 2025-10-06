@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { RefreshCw, Plus, Download, MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react'
 import Image from 'next/image'
+import { WatchlistSkeleton } from '@/components/skeleton-loading'
 
 interface CardRow {
   id: string
@@ -275,6 +276,10 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       setSortKey(key)
       setSortDir('asc')
     }
+  }
+
+  if (isLoading) {
+    return <WatchlistSkeleton />
   }
 
   return (

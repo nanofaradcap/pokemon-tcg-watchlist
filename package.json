@@ -27,6 +27,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@sparticuz/chromium-min": "^138.0.2",
     "@tanstack/react-query": "^5.89.0",
+    "@types/redis": "^4.0.10",
     "@vercel/analytics": "^1.5.0",
     "@vercel/fun": "^1.1.6",
     "class-variance-authority": "^0.7.1",
@@ -43,6 +44,7 @@
     "puppeteer-core": "^24.22.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "redis": "^5.8.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.1.11"

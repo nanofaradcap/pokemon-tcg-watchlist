@@ -3,6 +3,7 @@ import { extractCardMatch, areCardsSame, type CardMatch } from './card-matching'
 import { scrapeWithPuppeteer } from './puppeteer-scraping'
 import { scrapePriceCharting } from './pricecharting-scraping'
 import { scrapeWithFallback } from './scraping-fallback'
+import { redis } from './redis'
 
 const prisma = new PrismaClient()
 
@@ -86,6 +87,42 @@ type PrismaTransaction = Parameters<Parameters<PrismaClient['$transaction']>[0]>
 export class CardService {
   private cache = new Map<string, { data: CardWithSources; timestamp: number }>()
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  private readonly REDIS_TTL = 2 * 60 // 2 minutes in seconds
+
+  private async getCachedCards(profileName: string): Promise<CardDisplayData[] | null> {
+    if (!redis) return null
+    
+    try {
+      const cacheKey = `cards:${profileName}`
+      const cached = await redis.get(cacheKey)
+      return cached ? JSON.parse(cached) : null
+    } catch (error) {
+      console.warn('Redis cache miss or error:', error)
+      return null
+    }
+  }
+
+  private async setCachedCards(profileName: string, cards: CardDisplayData[]): Promise<void> {
+    if (!redis) return
+    
+    try {
+      const cacheKey = `cards:${profileName}`
+      await redis.setEx(cacheKey, this.REDIS_TTL, JSON.stringify(cards))
+    } catch (error) {
+      console.warn('Failed to cache cards:', error)
+    }
+  }
+
+  private async invalidateProfileCache(profileName: string): Promise<void> {
+    if (!redis) return
+    
+    try {
+      const cacheKey = `cards:${profileName}`
+      await redis.del(cacheKey)
+    } catch (error) {
+      console.warn('Failed to invalidate cache:', error)
+    }
+  }
 
   async addCard(url: string, profileName: string): Promise<CardDisplayData> {
     console.log('🔍 CardService.addCard called with:', { url, profileName })
@@ -274,7 +311,12 @@ export class CardService {
             console.log('🔍 Creating new card...')
             const newCard = await this.createNewCard(tx, cardMatch, url, profile.id, sourceData)
             console.log('🔍 New card created:', newCard.id)
-            return this.getCardDisplayData(newCard)
+            const result = this.getCardDisplayData(newCard)
+            
+            // Invalidate cache for this profile
+            await this.invalidateProfileCache(profileName)
+            
+            return result
           }
         } catch (error) {
           console.error('❌ Error in transaction:', error)
@@ -289,28 +331,71 @@ export class CardService {
   }
 
   async getCardsForProfile(profileName: string): Promise<CardDisplayData[]> {
+    // Try cache first
+    const cached = await this.getCachedCards(profileName)
+    if (cached) {
+      console.log(`📦 Cache hit for profile: ${profileName}`)
+      return cached
+    }
+
+    console.log(`🔍 Cache miss, fetching from database for profile: ${profileName}`)
+
     // Ensure profile exists
     let profile = await prisma.profile.findUnique({ where: { name: profileName } })
     if (!profile) {
       profile = await prisma.profile.create({ data: { name: profileName } })
     }
 
+    // Optimized query: Get user cards with basic card info first
     const userCards = await prisma.userCard.findMany({
       where: { userId: profile.id },
       include: {
         card: {
-          include: {
-            sources: {
-              include: {
-                prices: true
-              }
-            }
+          select: {
+            id: true,
+            name: true,
+            setDisplay: true,
+            No: true,
+            rarity: true,
+            imageUrl: true,
+            createdAt: true,
+            updatedAt: true
           }
         }
       }
     })
 
-    return userCards.map(uc => this.getCardDisplayData(uc.card as CardWithSources))
+    if (userCards.length === 0) {
+      await this.setCachedCards(profileName, [])
+      return []
+    }
+
+    // Get sources separately for better performance
+    const cardIds = userCards.map(uc => uc.card.id)
+    const sources = await prisma.cardSource.findMany({
+      where: { cardId: { in: cardIds } },
+      include: { prices: true }
+    })
+
+    // Group sources by cardId for efficient lookup
+    const sourcesByCard = sources.reduce((acc, source) => {
+      if (!acc[source.cardId]) acc[source.cardId] = []
+      acc[source.cardId].push(source)
+      return acc
+    }, {} as Record<string, CardSource[]>)
+
+    // Combine data efficiently
+    const cardsWithSources = userCards.map(uc => ({
+      ...uc.card,
+      sources: sourcesByCard[uc.card.id] || []
+    }))
+
+    const result = cardsWithSources.map(card => this.getCardDisplayData(card as CardWithSources))
+    
+    // Cache the result
+    await this.setCachedCards(profileName, result)
+    
+    return result
   }
 
   async refreshCard(cardId: string): Promise<CardDisplayData> {
@@ -346,7 +431,20 @@ export class CardService {
       
       // Return updated card
       const updatedCard = await this.getCardWithSources(tx, cardId)
-      return this.getCardDisplayData(updatedCard!)
+      const result = this.getCardDisplayData(updatedCard!)
+      
+      // Invalidate cache for all profiles that have this card
+      const profiles = await prisma.profile.findMany({
+        where: {
+          userCards: {
+            some: { cardId: cardId }
+          }
+        }
+      })
+      
+      await Promise.all(profiles.map(p => this.invalidateProfileCache(p.name)))
+      
+      return result
     })
   }
 
@@ -389,6 +487,9 @@ export class CardService {
           where: { id: cardId }
         })
       }
+      
+      // Invalidate cache for this profile
+      await this.invalidateProfileCache(profileName)
     })
   }
 
