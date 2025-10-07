@@ -549,7 +549,12 @@ export class CardService {
     
     // 3. Update card metadata with best available data
     // Prefer PriceCharting data for better metadata, but only update if current data is missing or empty
-    const updateData: any = {}
+    const updateData: {
+      setDisplay?: string
+      rarity?: string
+      imageUrl?: string
+      No?: string
+    } = {}
     
     // Update setDisplay if new data is available and current is empty
     if (typeof newSourceData.setDisplay === 'string' && newSourceData.setDisplay.trim() && 
@@ -867,11 +872,7 @@ export class CardService {
     
     // For merged cards, prefer PriceCharting for better metadata (setDisplay, No, rarity, imageUrl)
     // but fall back to TCGplayer if PriceCharting data is not available
-    const pricechartingSource = card.sources.find(s => s.sourceType === 'pricecharting')
-    const tcgplayerSource = card.sources.find(s => s.sourceType === 'tcgplayer')
-    
-    // Use PriceCharting metadata if available, otherwise use TCGplayer, otherwise use card defaults
-    const preferredSource = pricechartingSource || tcgplayerSource || card.sources[0]
+    // Note: Card metadata is stored at the Card level, not CardSource level
     
     return {
       id: card.id,
