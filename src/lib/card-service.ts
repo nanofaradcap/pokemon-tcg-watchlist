@@ -547,7 +547,43 @@ export class CardService {
       await this.createCardSource(tx, existingCard.id, newSourceData)
     }
     
-    // 3. Ensure user relationship exists
+    // 3. Update card metadata with best available data
+    // Prefer PriceCharting data for better metadata, but only update if current data is missing or empty
+    const updateData: any = {}
+    
+    // Update setDisplay if new data is available and current is empty
+    if (typeof newSourceData.setDisplay === 'string' && newSourceData.setDisplay.trim() && 
+        (!existingCard.setDisplay || existingCard.setDisplay.trim() === '')) {
+      updateData.setDisplay = newSourceData.setDisplay
+    }
+    
+    // Update rarity if new data is available and current is empty
+    if (typeof newSourceData.rarity === 'string' && newSourceData.rarity.trim() && 
+        (!existingCard.rarity || existingCard.rarity.trim() === '')) {
+      updateData.rarity = newSourceData.rarity
+    }
+    
+    // Update imageUrl if new data is available and current is empty
+    if (typeof newSourceData.imageUrl === 'string' && newSourceData.imageUrl.trim() && 
+        (!existingCard.imageUrl || existingCard.imageUrl.trim() === '')) {
+      updateData.imageUrl = newSourceData.imageUrl
+    }
+    
+    // Update No (card number) if new data is available and current is empty
+    if (typeof newSourceData.cardNumber === 'string' && newSourceData.cardNumber.trim() && 
+        (!existingCard.No || existingCard.No.trim() === '')) {
+      updateData.No = newSourceData.cardNumber
+    }
+    
+    // Only update if we have data to update
+    if (Object.keys(updateData).length > 0) {
+      await tx.card.update({
+        where: { id: existingCard.id },
+        data: updateData
+      })
+    }
+    
+    // 4. Ensure user relationship exists
     await tx.userCard.upsert({
       where: {
         userId_cardId: {
@@ -562,11 +598,18 @@ export class CardService {
       }
     })
     
-    // 4. Return updated card
+    // 5. Return updated card
     const updatedCard = await this.getCardWithSources(tx, existingCard.id)
     if (!updatedCard) {
       throw new Error('Failed to retrieve updated card')
     }
+    
+    // 6. Invalidate cache for this profile (we need to get the profile name)
+    const profile = await tx.profile.findUnique({ where: { id: profileId } })
+    if (profile) {
+      await this.invalidateProfileCache(profile.name)
+    }
+    
     return updatedCard
   }
 
@@ -822,6 +865,14 @@ export class CardService {
   private getCardDisplayData(card: CardWithSources): CardDisplayData {
     const consolidatedPricing = this.consolidatePricing(card.sources)
     
+    // For merged cards, prefer PriceCharting for better metadata (setDisplay, No, rarity, imageUrl)
+    // but fall back to TCGplayer if PriceCharting data is not available
+    const pricechartingSource = card.sources.find(s => s.sourceType === 'pricecharting')
+    const tcgplayerSource = card.sources.find(s => s.sourceType === 'tcgplayer')
+    
+    // Use PriceCharting metadata if available, otherwise use TCGplayer, otherwise use card defaults
+    const preferredSource = pricechartingSource || tcgplayerSource || card.sources[0]
+    
     return {
       id: card.id,
       name: card.name,
@@ -862,7 +913,15 @@ export class CardService {
   private consolidatePricing(sources: CardSource[]): CardDisplayData['pricing'] {
     const pricing: CardDisplayData['pricing'] = {}
     
-    for (const source of sources) {
+    // Sort sources to prioritize PriceCharting for graded prices and TCGplayer for market price
+    const sortedSources = [...sources].sort((a, b) => {
+      // PriceCharting first for graded prices, TCGplayer first for market price
+      if (a.sourceType === 'pricecharting' && b.sourceType === 'tcgplayer') return -1
+      if (a.sourceType === 'tcgplayer' && b.sourceType === 'pricecharting') return 1
+      return 0
+    })
+    
+    for (const source of sortedSources) {
       for (const price of source.prices) {
         // Map price types to the expected keys
         let key: keyof typeof pricing
@@ -892,8 +951,18 @@ export class CardService {
             continue
         }
         
+        // Only set if not already set, or if this is a better source for this price type
         if (pricing[key] === undefined) {
           pricing[key] = Number(price.price)
+        } else {
+          // For graded prices, prefer PriceCharting data
+          if (['ungradedPrice', 'grade7Price', 'grade8Price', 'grade9Price', 'grade95Price', 'grade10Price'].includes(key) && source.sourceType === 'pricecharting') {
+            pricing[key] = Number(price.price)
+          }
+          // For market price, prefer TCGplayer data
+          else if (key === 'marketPrice' && source.sourceType === 'tcgplayer') {
+            pricing[key] = Number(price.price)
+          }
         }
       }
     }
