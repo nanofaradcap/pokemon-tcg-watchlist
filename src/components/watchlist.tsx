@@ -275,7 +275,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="hidden md:flex gap-2">
           <div className="flex-1 text-center px-2 py-1 bg-muted rounded">
             <div className="text-xs text-muted-foreground">Grade 9</div>
             <div className="text-sm font-mono font-semibold">
@@ -297,24 +297,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   const CardItem = ({ card }: { card: CardRow }) => {
     return (
       <div className="border rounded-lg p-4 space-y-3 bg-card">
-        {/* Prominent Pricing Section */}
-        <PriceDisplay card={card} />
-        
-        {/* Full Width Image */}
-        <div className="w-full aspect-square relative rounded-md overflow-hidden bg-muted">
-          <Image
-            src={getImageUrl(card)}
-            alt={card.name}
-            fill
-            className="object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
-            }}
-          />
-        </div>
-
-        {/* Name and Link Row */}
+        {/* Name and Link Row - Title at top */}
         <div className="space-y-2">
           <div className="font-medium">
             <div className="flex items-start gap-2 flex-wrap">
@@ -356,6 +339,23 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
             </div>
           )}
         </div>
+
+        {/* Full Width Image */}
+        <div className="w-full aspect-square relative rounded-md overflow-hidden bg-muted">
+          <Image
+            src={getImageUrl(card)}
+            alt={card.name}
+            fill
+            className="object-contain"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+            }}
+          />
+        </div>
+
+        {/* Prominent Pricing Section */}
+        <PriceDisplay card={card} />
 
         {/* Metadata */}
         {(card.setDisplay || card.No || card.rarity || card.lastCheckedAt) && (
@@ -510,6 +510,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
             onClick={() => setViewMode(viewMode === 'compact' ? 'expanded' : 'compact')}
             aria-pressed={viewMode === 'expanded'}
             title={viewMode === 'expanded' ? 'Switch to compact' : 'Switch to expanded'}
+            className="hidden md:inline-flex"
           >
             {viewMode === 'expanded' ? 'Compact' : 'Expanded'}
           </Button>
