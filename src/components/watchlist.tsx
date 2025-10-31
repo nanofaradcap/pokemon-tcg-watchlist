@@ -98,14 +98,18 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   }, [profile])
 
   // Fetch cards (only on client side to prevent hydration mismatch)
-  const { data: cards = [], isLoading } = useQuery<CardRow[]>({
+  const { data: cards = [], isLoading, error, isError } = useQuery<CardRow[]>({
     queryKey: ['cards', profile],
     queryFn: async () => {
       const response = await fetch(`/api/cards?profile=${encodeURIComponent(profile)}`)
-      if (!response.ok) throw new Error('Failed to fetch cards')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to fetch cards')
+      }
       return response.json()
     },
     enabled: isClient, // Only run query when we're on the client side
+    retry: 1,
   })
 
   // Add card mutation
@@ -437,6 +441,26 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
 
   if (!isClient || isLoading) {
     return <WatchlistSkeleton />
+  }
+
+  if (isError) {
+    console.error('🔍 Query error:', error)
+    return (
+      <div className="text-center py-8 border rounded-lg">
+        <p className="text-destructive font-medium">Failed to load cards</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {error instanceof Error ? error.message : 'Unknown error occurred'}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['cards', profile] })}
+          className="mt-4"
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Retry
+        </Button>
+      </div>
+    )
   }
 
   return (
