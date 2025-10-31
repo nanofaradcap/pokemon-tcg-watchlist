@@ -94,7 +94,11 @@ export class CardService {
     
     try {
       const cacheKey = `cards:${profileName}`
-      const cached = await redis.get(cacheKey)
+      // Add timeout to prevent hanging
+      const cached = await Promise.race([
+        redis.get(cacheKey),
+        new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 1000))
+      ])
       return cached ? JSON.parse(cached) : null
     } catch (error) {
       console.warn('Redis cache miss or error:', error)
@@ -107,7 +111,11 @@ export class CardService {
     
     try {
       const cacheKey = `cards:${profileName}`
-      await redis.setEx(cacheKey, this.REDIS_TTL, JSON.stringify(cards))
+      // Add timeout to prevent hanging
+      await Promise.race([
+        redis.setEx(cacheKey, this.REDIS_TTL, JSON.stringify(cards)),
+        new Promise<void>((resolve) => setTimeout(() => resolve(), 1000))
+      ])
     } catch (error) {
       console.warn('Failed to cache cards:', error)
     }
@@ -331,11 +339,19 @@ export class CardService {
   }
 
   async getCardsForProfile(profileName: string): Promise<CardDisplayData[]> {
-    // Try cache first
-    const cached = await this.getCachedCards(profileName)
-    if (cached) {
-      console.log(`📦 Cache hit for profile: ${profileName}`)
-      return cached
+    // Try cache first (with timeout to prevent hanging)
+    let cached: CardDisplayData[] | null = null
+    try {
+      cached = await Promise.race([
+        this.getCachedCards(profileName),
+        new Promise<CardDisplayData[] | null>((resolve) => setTimeout(() => resolve(null), 500))
+      ])
+      if (cached) {
+        console.log(`📦 Cache hit for profile: ${profileName}`)
+        return cached
+      }
+    } catch (error) {
+      console.warn('Cache check failed, continuing with DB fetch:', error)
     }
 
     console.log(`🔍 Cache miss, fetching from database for profile: ${profileName}`)

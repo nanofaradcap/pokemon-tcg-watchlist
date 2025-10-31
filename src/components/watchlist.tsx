@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, HydrationBoundary, DehydratedState } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,22 +42,20 @@ const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 
 interface WatchlistProps {
   profiles?: readonly string[]
+  dehydratedState?: DehydratedState
 }
 
-export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
+function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly string[] }) {
   const [url, setUrl] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>('compact')
   const [sortKey, setSortKey] = useState<'name' | 'marketPrice'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [profile, setProfile] = useState<string>(profiles[0])
-  const [isClient, setIsClient] = useState(false)
   const queryClient = useQueryClient()
 
   // Initialize client-side state and load from localStorage
   useEffect(() => {
-    setIsClient(true)
-    
     // Load view mode
     const savedViewMode = window.localStorage.getItem('watchlist:viewMode')
     if (savedViewMode === 'compact' || savedViewMode === 'expanded') {
@@ -97,7 +95,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
     }
   }, [profile])
 
-  // Fetch cards (only on client side to prevent hydration mismatch)
+  // Fetch cards - now supports SSR with initial data hydration
   const { data: cards = [], isLoading, error, isError } = useQuery<CardRow[]>({
     queryKey: ['cards', profile],
     queryFn: async () => {
@@ -108,28 +106,22 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       }
       return response.json()
     },
-    enabled: isClient, // Only run query when we're on the client side
     retry: 1,
   })
 
   // Add card mutation
   const addCardMutation = useMutation({
     mutationFn: async (url: string) => {
-      console.log('🔍 Frontend: Starting add card mutation', { url, profile })
       const response = await fetch('/api/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, profile }),
       })
-      console.log('🔍 Frontend: Response received', { status: response.status, ok: response.ok })
       if (!response.ok) {
         const error = await response.json()
-        console.error('🔍 Frontend: Error response', error)
         throw new Error(error.error || 'Failed to add card')
       }
-      const data = await response.json()
-      console.log('🔍 Frontend: Success response', data)
-      return data
+      return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards', profile] })
@@ -294,7 +286,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
   }
 
   // Card component for mobile layout
-  const CardItem = ({ card }: { card: CardRow }) => {
+  const CardItem = ({ card, priority = false }: { card: CardRow; priority?: boolean }) => {
     return (
       <div className="border rounded-lg p-4 space-y-3 bg-card">
         {/* Name and Link Row - Title at top */}
@@ -346,6 +338,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
             src={getImageUrl(card)}
             alt={card.name}
             fill
+            priority={priority}
             className="object-contain"
             onError={(e) => {
               const target = e.target as HTMLImageElement
@@ -439,12 +432,11 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
     }
   }
 
-  if (!isClient || isLoading) {
+  if (isLoading) {
     return <WatchlistSkeleton />
   }
 
   if (isError) {
-    console.error('🔍 Query error:', error)
     return (
       <div className="text-center py-8 border rounded-lg">
         <p className="text-destructive font-medium">Failed to load cards</p>
@@ -532,8 +524,8 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
             </p>
           </div>
         ) : (
-          sortedCards.map((card) => (
-            <CardItem key={card.id} card={card} />
+          sortedCards.map((card, index) => (
+            <CardItem key={card.id} card={card} priority={index < 3} />
           ))
         )}
       </div>
@@ -591,7 +583,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              sortedCards.map((card) => (
+              sortedCards.map((card, index) => (
                 <TableRow key={card.id}>
                   <TableCell>
                     <div
@@ -605,6 +597,7 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                         src={getImageUrl(card)}
                         alt={card.name}
                         fill
+                        priority={index < 5}
                         className={viewMode === 'expanded' ? 'object-contain' : 'object-cover'}
                         onError={(e) => {
                           const target = e.target as HTMLImageElement
@@ -722,4 +715,15 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
       </div>
     </div>
   )
+}
+
+export function Watchlist({ profiles = defaultProfiles, dehydratedState }: WatchlistProps) {
+  if (dehydratedState) {
+    return (
+      <HydrationBoundary state={dehydratedState}>
+        <WatchlistContent profiles={profiles} />
+      </HydrationBoundary>
+    )
+  }
+  return <WatchlistContent profiles={profiles} />
 }
