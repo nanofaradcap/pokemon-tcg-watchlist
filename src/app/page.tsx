@@ -40,7 +40,7 @@ export default async function Home() {
     });
     
     dehydratedState = dehydrate(queryClient);
-  } catch (error) {
+  } catch {
     // Create empty dehydrated state - client will fetch on mount
     dehydratedState = dehydrate(queryClient);
   }
