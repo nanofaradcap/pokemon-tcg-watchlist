@@ -253,6 +253,153 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
     return card.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${card.productId}_in_1000x1000.jpg`
   }
 
+  // Price display component for prominent pricing
+  const PriceDisplay = ({ card }: { card: CardRow }) => {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline gap-4">
+          <div className="flex-1">
+            <div className="text-xs text-muted-foreground mb-1">TCG Price</div>
+            <div className="text-2xl font-bold font-mono">
+              {formatPrice(card.marketPrice)}
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="text-xs text-muted-foreground mb-1">Ungraded</div>
+            <div className="text-2xl font-bold font-mono">
+              {formatPrice(card.ungradedPrice)}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1 text-center px-2 py-1 bg-muted rounded">
+            <div className="text-xs text-muted-foreground">Grade 9</div>
+            <div className="text-sm font-mono font-semibold">
+              {formatPrice(card.grade9Price)}
+            </div>
+          </div>
+          <div className="flex-1 text-center px-2 py-1 bg-muted rounded">
+            <div className="text-xs text-muted-foreground">Grade 10</div>
+            <div className="text-sm font-mono font-semibold">
+              {formatPrice(card.grade10Price)}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Card component for mobile layout
+  const CardItem = ({ card }: { card: CardRow }) => {
+    return (
+      <div className="border rounded-lg p-4 space-y-3 bg-card">
+        {/* Prominent Pricing Section */}
+        <PriceDisplay card={card} />
+        
+        {/* Full Width Image */}
+        <div className="w-full aspect-square relative rounded-md overflow-hidden bg-muted">
+          <Image
+            src={getImageUrl(card)}
+            alt={card.name}
+            fill
+            className="object-contain"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+            }}
+          />
+        </div>
+
+        {/* Name and Link Row */}
+        <div className="space-y-2">
+          <div className="font-medium">
+            <div className="flex items-start gap-2 flex-wrap">
+              <span className="text-blue-600 dark:text-blue-400 break-words">{card.name}</span>
+              <div className="flex items-center gap-1 flex-wrap">
+                {card.isMerged && card.mergedUrls && card.mergedUrls.length > 1 ? (
+                  card.mergedUrls.map((url, index) => {
+                    const source = url && typeof url === 'string' && url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'
+                    return (
+                      <a
+                        key={index}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {source}
+                      </a>
+                    )
+                  })
+                ) : (
+                  <a
+                    href={card.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    {card.url && typeof card.url === 'string' && card.url.includes('tcgplayer.com') ? 'TCGplayer' : 'PriceCharting'}
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+          {card.isMerged && card.mergedSources && (
+            <div className="text-xs text-blue-600 dark:text-blue-400">
+              Merged: {card.mergedSources.join(' + ')}
+            </div>
+          )}
+        </div>
+
+        {/* Metadata */}
+        {(card.setDisplay || card.No || card.rarity || card.lastCheckedAt) && (
+          <div className="text-sm text-muted-foreground space-y-1">
+            {card.setDisplay && <div>Set: {card.setDisplay}</div>}
+            {card.No && <div>No: {card.No}</div>}
+            {card.rarity && <div>Rarity: {card.rarity}</div>}
+            {card.lastCheckedAt && (
+              <div>Last checked: {new Date(card.lastCheckedAt).toLocaleString()}</div>
+            )}
+          </div>
+        )}
+
+        {/* Actions Footer */}
+        <div className="flex items-center justify-end gap-2 pt-2 border-t">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleRefreshCard(card.id)}
+            disabled={refreshCardMutation.isPending}
+            className="h-9"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshCardMutation.isPending ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-9">
+                <MoreHorizontal className="h-4 w-4 mr-2" />
+                More
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => handleDeleteCard(card.id)}
+                disabled={deleteCardMutation.isPending}
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    )
+  }
+
   const sortedCards = (() => {
     const copy = [...cards]
     copy.sort((a, b) => {
@@ -345,8 +492,29 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
         </div>
       </div>
 
-      {/* Cards Table */}
-      <div className="rounded-md border overflow-x-auto">
+      {/* Mobile Card Layout */}
+      <div className="md:hidden space-y-4">
+        {isLoading ? (
+          <div className="text-center py-8">
+            <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
+            <p className="mt-2 text-muted-foreground">Loading cards...</p>
+          </div>
+        ) : cards.length === 0 ? (
+          <div className="text-center py-8 border rounded-lg">
+            <p className="text-muted-foreground">No cards in your watchlist yet.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Add a TCGplayer or PriceCharting URL above to get started.
+            </p>
+          </div>
+        ) : (
+          sortedCards.map((card) => (
+            <CardItem key={card.id} card={card} />
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table Layout */}
+      <div className="hidden md:block rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -363,35 +531,34 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                   ) : null}
                 </button>
               </TableHead>
-              <TableHead className="w-24">
+              <TableHead className="min-w-[180px]">
                 <button
                   type="button"
                   className="flex items-center gap-1 p-2 -m-2 rounded hover:bg-accent transition-colors"
                   onClick={() => toggleSort('marketPrice')}
                 >
-                  TCG Price
+                  Pricing
                   {sortKey === 'marketPrice' ? (
                     <span aria-hidden>{sortDir === 'asc' ? '▲' : '▼'}</span>
                   ) : null}
                 </button>
               </TableHead>
-              <TableHead className="w-20 text-center">Ungraded</TableHead>
-              <TableHead className="w-20 text-center">Grade 9</TableHead>
-              <TableHead className="w-20 text-center">Grade 10</TableHead>
+              <TableHead className="w-24 text-center">Grade 9</TableHead>
+              <TableHead className="w-24 text-center">Grade 10</TableHead>
               <TableHead className="w-16">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
                   <p className="mt-2 text-muted-foreground">Loading cards...</p>
                 </TableCell>
               </TableRow>
             ) : cards.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <p className="text-muted-foreground">No cards in your watchlist yet.</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Add a TCGplayer or PriceCharting URL above to get started.
@@ -469,11 +636,21 @@ export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono">
-                    {formatPrice(card.marketPrice)}
-                  </TableCell>
-                  <TableCell className="font-mono text-center">
-                    {formatPrice(card.ungradedPrice)}
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>
+                        <div className="text-xs text-muted-foreground">TCG</div>
+                        <div className="font-mono font-semibold text-base">
+                          {formatPrice(card.marketPrice)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Ungraded</div>
+                        <div className="font-mono font-semibold text-base">
+                          {formatPrice(card.ungradedPrice)}
+                        </div>
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="font-mono text-center">
                     {formatPrice(card.grade9Price)}
