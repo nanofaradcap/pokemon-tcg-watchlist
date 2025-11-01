@@ -393,6 +393,26 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     )
   }
 
+  // Helper function to get the effective price for sorting
+  // If both exist, use ungraded PriceCharting price, else use TCG price, if only one exists use that
+  const getEffectivePrice = (card: CardRow): number | null => {
+    const hasUngraded = card.ungradedPrice !== null && card.ungradedPrice !== undefined
+    const hasMarket = card.marketPrice !== null && card.marketPrice !== undefined
+    
+    if (hasUngraded && hasMarket) {
+      // If both exist, use ungraded PriceCharting price
+      return card.ungradedPrice!
+    } else if (hasUngraded) {
+      // If only ungraded exists, use that
+      return card.ungradedPrice!
+    } else if (hasMarket) {
+      // If only market price exists, use that
+      return card.marketPrice!
+    }
+    // Neither exists
+    return null
+  }
+
   const sortedCards = (() => {
     const copy = [...cards]
     copy.sort((a, b) => {
@@ -405,8 +425,8 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
           return av.localeCompare(bv) * direction
         }
         case 'marketPrice': {
-          const av = a.marketPrice
-          const bv = b.marketPrice
+          const av = getEffectivePrice(a)
+          const bv = getEffectivePrice(b)
           if (nullsLast(av) && nullsLast(bv)) return 0
           if (nullsLast(av)) return 1
           if (nullsLast(bv)) return -1
