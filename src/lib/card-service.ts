@@ -503,10 +503,10 @@ export class CardService {
           where: { id: cardId }
         })
       }
-      
-      // Invalidate cache for this profile
-      await this.invalidateProfileCache(profileName)
     })
+    
+    // Invalidate cache for this profile (outside transaction)
+    await this.invalidateProfileCache(profileName)
   }
 
   private async findMatchingCards(tx: PrismaTransaction, cardMatch: CardMatch): Promise<CardWithSources[]> {
