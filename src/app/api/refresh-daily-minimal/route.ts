@@ -7,22 +7,20 @@ export async function GET() {
   try {
     console.log('🔄 Starting minimal daily refresh...')
     
-    // Just update the updatedAt timestamp without actually scraping
-    const updatedCards = await prisma.card.updateMany({
-      data: {
-        updatedAt: new Date()
-      }
-    })
+    // Count total cards (minimal refresh doesn't actually update anything)
+    // Note: updatedAt is @updatedAt in Prisma schema and auto-updates on any field change
+    // Since this is a minimal refresh, we don't perform any updates
+    const cardCount = await prisma.card.count()
     
     const duration = Date.now() - startTime
-    console.log(`✅ Minimal daily refresh completed in ${duration}ms: ${updatedCards.count} cards updated`)
+    console.log(`✅ Minimal daily refresh completed in ${duration}ms: ${cardCount} cards found`)
     
     return NextResponse.json({
       success: true,
       message: 'Minimal daily refresh completed',
-      updatedCards: updatedCards.count,
+      cardCount: cardCount,
       duration: `${duration}ms`,
-      note: 'This is a minimal refresh that only updates timestamps. Full scraping should be done manually.',
+      note: 'This is a minimal refresh that does not update any data. Full scraping should be done manually.',
       timestamp: new Date().toISOString()
     })
     
