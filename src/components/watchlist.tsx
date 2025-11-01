@@ -106,7 +106,11 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
       })
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to add card')
+        // Include details if available (especially in development)
+        const errorMessage = error.details 
+          ? `${error.error}: ${error.details}` 
+          : error.error || 'Failed to add card'
+        throw new Error(errorMessage)
       }
       return response.json()
     },

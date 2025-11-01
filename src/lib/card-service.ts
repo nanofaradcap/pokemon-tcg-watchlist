@@ -205,53 +205,55 @@ export class CardService {
       } else if (url.includes('pricecharting.com')) {
         // Remove query parameters before parsing
         const cleanUrl = url.split('?')[0]
-        // More flexible regex to handle different PriceCharting URL formats
-        const urlMatch = cleanUrl.match(/\/game\/[^\/]+\/([^\/\?]+)/)
+        
+        // PriceCharting URL format: /game/{game-name}/{card-slug}
+        // Example: /game/pokemon-japanese-go/radiant-blastoise-18
+        // Extract the card slug (last segment)
+        const urlMatch = cleanUrl.match(/\/game\/[^\/]+\/([^\/\?]+)$/)
         if (urlMatch) {
           const urlSegment = urlMatch[1]
+          
+          // Decode URL segment: "radiant-blastoise-18" -> "radiant blastoise 18"
           cardName = decodeURIComponent(urlSegment.replace(/-/g, ' '))
           
-          // Try to extract card number from URL segment
+          // Extract card number from the end: match "-18" or "-232" etc.
+          // Pattern: trailing dash followed by digits
           const numberMatch = urlSegment.match(/-(\d+)$/)
           if (numberMatch) {
             cardNumber = numberMatch[1]
+            // Remove the number from cardName to get clean name
+            // "radiant blastoise 18" -> "radiant blastoise"
+            cardName = cardName.replace(new RegExp(`\\s+${cardNumber}\\s*$`), '').trim()
           }
-        } else {
-          // Fallback: try to extract from the end of the URL
-          const fallbackMatch = cleanUrl.match(/\/([^\/\?]+)$/)
-          if (fallbackMatch) {
-            const urlSegment = fallbackMatch[1]
-            cardName = decodeURIComponent(urlSegment.replace(/-/g, ' '))
-            
-            // Try to extract card number from URL segment
-            const numberMatch = urlSegment.match(/-(\d+)$/)
-            if (numberMatch) {
-              const fullNumber = numberMatch[1]
-              // If the number is 6 digits (like 112101), extract the first 3 digits (112)
-              if (fullNumber.length === 6) {
-                cardNumber = fullNumber.substring(0, 3)
-              } else {
-                cardNumber = fullNumber
-              }
-            }
-            
-            // Also try to match patterns like "magikarp-080-073" where we want the first number
-            const multiNumberMatch = urlSegment.match(/-(\d+)-(\d+)$/)
-            if (multiNumberMatch) {
-              const firstNumber = multiNumberMatch[1]
-              const secondNumber = multiNumberMatch[2]
-              // Use the first number as the card number
-              cardNumber = firstNumber
-              console.log(`🔍 Found multi-number pattern: ${firstNumber}-${secondNumber}, using ${firstNumber}`)
-            }
-          }
+        }
+        
+        // Validate we got something
+        if (!cardName) {
+          throw new Error(`Could not extract card name from PriceCharting URL: ${url}`)
         }
       }
       
       // 2. Scrape card data OUTSIDE transaction
       console.log('🔍 Scraping card data...')
-      const sourceData = await this.scrapeCardData(url)
-      console.log('🔍 Scraped data:', sourceData)
+      let sourceData: Record<string, unknown> | null = null
+      try {
+        // Add timeout wrapper to prevent hanging
+        const scrapePromise = this.scrapeCardData(url) as Promise<Record<string, unknown>>
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Scraping timed out after 20 seconds')), 20000)
+        )
+        sourceData = await Promise.race([scrapePromise, timeoutPromise])
+        console.log('🔍 Scraped data:', sourceData)
+      } catch (scrapeError) {
+        console.warn('⚠️ Scraping failed, will use URL-extracted data:', scrapeError instanceof Error ? scrapeError.message : 'Unknown error')
+        // Create minimal sourceData so we can continue with URL-extracted data
+        sourceData = {
+          sourceType: url.includes('tcgplayer.com') ? 'tcgplayer' : 'pricecharting',
+          url: url.split('?')[0],
+          productId: '',
+          currency: 'USD'
+        }
+      }
       
       // 3. Use scraped card name if available, otherwise use URL-extracted name
       let finalCardName = cardName
@@ -277,20 +279,33 @@ export class CardService {
       }
       
       // 5. Extract card match with final card name and updated card number
+      // If we have URL-extracted data but no card number, try to extract it from the name
+      if (!cardNumber && finalCardName) {
+        // Try to extract number from name like "radiant blastoise 18"
+        const nameNumberMatch = finalCardName.match(/(\d+)\s*$/)
+        if (nameNumberMatch) {
+          cardNumber = nameNumberMatch[1]
+          finalCardName = finalCardName.replace(/\s+\d+\s*$/, '').trim()
+          console.log('🔍 Extracted card number from name:', cardNumber)
+        }
+      }
+      
       const cardMatch = extractCardMatch(finalCardName, url, cardNumber)
       console.log('🔍 Card match result:', cardMatch)
+      console.log('🔍 Inputs - finalCardName:', finalCardName, 'cardNumber:', cardNumber)
       
       if (!cardMatch) {
-        throw new Error('Could not extract card information from URL')
+        throw new Error(`Could not extract card information from URL. Name: "${finalCardName}", Number: "${cardNumber}", URL: ${url}`)
       }
       
-      // Validate scraped data
+      // Validate scraped data (should always exist due to fallback above)
       if (!sourceData || typeof sourceData !== 'object') {
-        throw new Error('Failed to scrape card data - no data returned')
+        throw new Error('Failed to get card data - no data returned')
       }
       
+      // Ensure sourceType is set (should always be set from scrapeCardData or fallback)
       if (!sourceData.sourceType) {
-        throw new Error('Failed to scrape card data - missing sourceType')
+        sourceData.sourceType = url.includes('tcgplayer.com') ? 'tcgplayer' : 'pricecharting'
       }
 
       // 6. Now do database operations in transaction

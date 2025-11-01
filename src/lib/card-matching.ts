@@ -211,14 +211,17 @@ export function extractCardMatch(cardName: string, url: string, cardNumber?: str
     }
     return match
   } else if (url.includes('pricecharting.com')) {
-    const match = extractPriceChartingMatch(cardName)
-    // If we have a card number from URL, use it instead
-    if (match && cardNumber) {
+    // For PriceCharting URLs, if we have cardNumber from URL parsing, use it directly
+    // The cardName should already be cleaned by URL parsing (number removed)
+    if (cardNumber && cardName) {
       return {
-        name: match.name,
+        name: cardName.trim(),
         number: cardNumber
       }
     }
+    
+    // Fallback: try to extract from cardName using patterns
+    const match = extractPriceChartingMatch(cardName)
     return match
   }
   return null

@@ -49,7 +49,8 @@ export interface PriceChartingData {
 
 export async function scrapePriceCharting(url: string): Promise<PriceChartingData> {
   let browser: Browser | null = null
-  const timeout = 25000 // 25 seconds (leaving 5s buffer for Vercel's 30s limit)
+  // Reduced timeout since we're using faster wait strategies (domcontentloaded instead of networkidle0)
+  const timeout = 20000 // 20 seconds
 
   try {
     const puppeteer = await loadPuppeteer()
@@ -96,18 +97,30 @@ export async function scrapePriceCharting(url: string): Promise<PriceChartingDat
 
     const result = await Promise.race([
       (async () => {
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 15000 })
-
-        // Wait for price table to appear
+        // Use 'domcontentloaded' instead of 'networkidle0' - much faster and doesn't hang
+        // 'networkidle0' waits for 500ms of no network requests, which can hang indefinitely
+        // on pages with continuous requests (analytics, ads, etc.)
         try {
-          await page.waitForSelector('#price_data', { timeout: 12000 })
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 })
         } catch {
-          await page.waitForSelector('.price', { timeout: 8000 })
+          // Fallback to 'load' if domcontentloaded fails
+          await page.goto(url, { waitUntil: 'load', timeout: 8000 })
         }
 
-        // Wait for product name
+        // Wait for price table to appear (reduced timeout since page is already loaded)
         try {
-          await page.waitForSelector('#product_name', { timeout: 10000 })
+          await page.waitForSelector('#price_data', { timeout: 5000 })
+        } catch {
+          try {
+            await page.waitForSelector('.price', { timeout: 3000 })
+          } catch {
+            // Continue even if price elements don't appear
+          }
+        }
+
+        // Wait for product name (reduced timeout)
+        try {
+          await page.waitForSelector('#product_name', { timeout: 5000 })
         } catch {
           // Continue even if product name doesn't appear
         }
