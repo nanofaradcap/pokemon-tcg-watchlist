@@ -294,7 +294,7 @@ export class CardService {
       }
 
       // 6. Now do database operations in transaction
-      return await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         try {
           console.log('🔍 Starting transaction')
           // 0. Ensure profile exists
@@ -319,18 +319,18 @@ export class CardService {
             console.log('🔍 Creating new card...')
             const newCard = await this.createNewCard(tx, cardMatch, url, profile.id, sourceData)
             console.log('🔍 New card created:', newCard.id)
-            const result = this.getCardDisplayData(newCard)
-            
-            // Invalidate cache for this profile
-            await this.invalidateProfileCache(profileName)
-            
-            return result
+            return this.getCardDisplayData(newCard)
           }
         } catch (error) {
           console.error('❌ Error in transaction:', error)
           throw error
         }
       })
+      
+      // Invalidate cache for this profile (outside transaction)
+      await this.invalidateProfileCache(profileName)
+      
+      return result
     } catch (error) {
       console.error('❌ Error adding card:', error)
       console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack')
@@ -623,12 +623,6 @@ export class CardService {
     const updatedCard = await this.getCardWithSources(tx, existingCard.id)
     if (!updatedCard) {
       throw new Error('Failed to retrieve updated card')
-    }
-    
-    // 6. Invalidate cache for this profile (we need to get the profile name)
-    const profile = await tx.profile.findUnique({ where: { id: profileId } })
-    if (profile) {
-      await this.invalidateProfileCache(profile.name)
     }
     
     return updatedCard
