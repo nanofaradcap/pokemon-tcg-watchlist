@@ -9,11 +9,12 @@ export default async function Home() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 1000 * 60 * 2,
+        staleTime: 0, // Always consider data stale, but use cache for instant display
         gcTime: 1000 * 60 * 10,
         retry: 1,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
+        refetchOnWindowFocus: true,
+        refetchOnMount: true, // Always refetch on mount to ensure fresh data
+        refetchOnReconnect: true,
       },
     },
   });

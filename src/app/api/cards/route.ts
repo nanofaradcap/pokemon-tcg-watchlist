@@ -1,5 +1,6 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const revalidate = 0 // Disable Next.js route cache
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'

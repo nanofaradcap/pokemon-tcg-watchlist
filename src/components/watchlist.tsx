@@ -49,21 +49,27 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
   const [isAdding, setIsAdding] = useState(false)
   const [sortKey, setSortKey] = useState<'name' | 'marketPrice'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [profile, setProfile] = useState<string>(profiles[0])
+  // Initialize profile from localStorage immediately to avoid mismatch
+  const [profile, setProfile] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const savedProfile = window.localStorage.getItem('watchlist:profile')
+      if (savedProfile && profiles.includes(savedProfile)) {
+        return savedProfile
+      }
+    }
+    return profiles[0]
+  })
   const queryClient = useQueryClient()
 
-  // Initialize client-side state and load from localStorage
+  // Handle profile changes from ProfilePills component
   useEffect(() => {
-    // Load profile
-    const savedProfile = window.localStorage.getItem('watchlist:profile')
-    if (savedProfile && profiles.includes(savedProfile)) {
-      setProfile(savedProfile)
-    }
-
     const onProfileChange = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (detail && profiles.includes(detail)) {
         setProfile(detail)
+        // Invalidate and immediately refetch for the new profile
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+        queryClient.refetchQueries({ queryKey: ['cards', detail] })
       }
     }
     if (typeof window !== 'undefined') {
@@ -74,7 +80,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
         window.removeEventListener('watchlist:profile-change', onProfileChange as EventListener)
       }
     }
-  }, [profiles])
+  }, [profiles, queryClient])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -86,7 +92,13 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
   const { data: cards = [], isLoading, error, isError } = useQuery<CardRow[]>({
     queryKey: ['cards', profile],
     queryFn: async () => {
-      const response = await fetch(`/api/cards?profile=${encodeURIComponent(profile)}`)
+      const response = await fetch(`/api/cards?profile=${encodeURIComponent(profile)}`, {
+        cache: 'no-store', // Disable Next.js fetch cache
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         throw new Error(errorData.error || 'Failed to fetch cards')
@@ -94,6 +106,10 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
       return response.json()
     },
     retry: 1,
+    // Ensure we refetch when profile changes
+    enabled: !!profile,
+    // Force refetch when query key changes (profile change)
+    refetchOnMount: true,
   })
 
   // Add card mutation
