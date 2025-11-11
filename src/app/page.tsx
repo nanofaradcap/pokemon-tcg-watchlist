@@ -1,7 +1,11 @@
-import { Watchlist } from "@/components/watchlist";
+import { WatchlistWrapper } from "@/components/watchlist-wrapper";
 import { ProfilePills } from "@/components/profile-pills";
 import { cardService } from "@/lib/card-service";
 import { QueryClient, dehydrate } from "@tanstack/react-query";
+
+// Force dynamic rendering to prevent Next.js from caching the page
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const;
 
@@ -9,11 +13,14 @@ export default async function Home() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 0, // Always consider data stale, but use cache for instant display
+        // Set staleTime to 30 seconds - data is considered fresh for 30s
+        // This prevents immediate refetch on mount when we have hydrated data
+        staleTime: 1000 * 30, // 30 seconds
         gcTime: 1000 * 60 * 10,
         retry: 1,
         refetchOnWindowFocus: true,
-        refetchOnMount: true, // Always refetch on mount to ensure fresh data
+        // Only refetch on mount if data is stale (older than staleTime)
+        refetchOnMount: true,
         refetchOnReconnect: true,
       },
     },
@@ -58,7 +65,8 @@ export default async function Home() {
           </div>
           <ProfilePills />
         </div>
-        <Watchlist dehydratedState={dehydratedState} />
+        {/* Wrap Watchlist with HydrationBoundary to provide initial data */}
+        <WatchlistWrapper dehydratedState={dehydratedState} />
       </div>
     </div>
   );

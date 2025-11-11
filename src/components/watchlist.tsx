@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useQuery, useMutation, useQueryClient, HydrationBoundary, DehydratedState } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,7 +41,6 @@ const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 
 interface WatchlistProps {
   profiles?: readonly string[]
-  dehydratedState?: DehydratedState
 }
 
 function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly string[] }) {
@@ -108,7 +107,9 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     retry: 1,
     // Ensure we refetch when profile changes
     enabled: !!profile,
-    // Force refetch when query key changes (profile change)
+    // refetchOnMount respects staleTime - if data is fresh (< 30s), it won't refetch
+    // This prevents the flash of old content when we have fresh dehydrated state
+    // Data will still refetch in the background if stale, but won't show loading state
     refetchOnMount: true,
   })
 
@@ -581,13 +582,8 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
   )
 }
 
-export function Watchlist({ profiles = defaultProfiles, dehydratedState }: WatchlistProps) {
-  if (dehydratedState) {
-    return (
-      <HydrationBoundary state={dehydratedState}>
-        <WatchlistContent profiles={profiles} />
-      </HydrationBoundary>
-    )
-  }
+export function Watchlist({ profiles = defaultProfiles }: WatchlistProps) {
+  // HydrationBoundary is already handled in Providers component
+  // Just render the content directly
   return <WatchlistContent profiles={profiles} />
 }
