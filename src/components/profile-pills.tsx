@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { getProfilePreference, setProfile } from '@/lib/profile-storage'
 
 const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 
@@ -15,15 +16,16 @@ export function ProfilePills({ profiles = defaultProfiles }: ProfilePillsProps) 
 
   useEffect(() => {
     setIsClient(true)
-    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('watchlist:profile') : null
-    if (saved && profiles.includes(saved)) setProfile(saved)
-    else setProfile(profiles[0]) // Default to first profile if saved one doesn't exist
+    if (typeof window !== 'undefined') {
+      const savedProfile = getProfilePreference(profiles)
+      setProfile(savedProfile)
+    }
   }, [profiles])
 
   const handleSelect = (p: string) => {
     setProfile(p)
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('watchlist:profile', p)
+      setProfile(p) // Sync both localStorage and cookies
       window.dispatchEvent(new CustomEvent('watchlist:profile-change', { detail: p }))
     }
   }

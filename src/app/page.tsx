@@ -26,8 +26,28 @@ export default async function Home() {
     },
   });
 
-  // Prefetch cards data for the default profile (first profile)
-  const defaultProfile = defaultProfiles[0];
+  // Determine which profile to prefetch from cookies (if available)
+  // This ensures we prefetch the correct profile that matches what the client will render
+  let profileToPrefetch: typeof defaultProfiles[number] = defaultProfiles[0];
+  
+  // Try to read profile from cookies (available on server-side)
+  try {
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get('watchlist:profile')?.value;
+    
+    // Validate profile is in allowed list and decode if needed
+    if (cookieValue) {
+      const decoded = decodeURIComponent(cookieValue);
+      if (defaultProfiles.includes(decoded as typeof defaultProfiles[number])) {
+        profileToPrefetch = decoded as typeof defaultProfiles[number];
+      }
+    }
+  } catch {
+    // If cookies() fails (e.g., in edge runtime or during build), fall back to default
+    // This is expected during static generation or if cookies aren't available
+  }
+  
   let dehydratedState: ReturnType<typeof dehydrate> | null = null;
   
   try {
@@ -38,12 +58,12 @@ export default async function Home() {
     );
     
     const data = await Promise.race([
-      cardService.getCardsForProfile(defaultProfile),
+      cardService.getCardsForProfile(profileToPrefetch),
       timeoutPromise
     ]) as Awaited<ReturnType<typeof cardService.getCardsForProfile>>;
     
     await queryClient.prefetchQuery({
-      queryKey: ['cards', defaultProfile],
+      queryKey: ['cards', profileToPrefetch],
       queryFn: () => Promise.resolve(data),
     });
     

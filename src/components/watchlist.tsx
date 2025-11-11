@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RefreshCw, Plus, Download, MoreHorizontal, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import { WatchlistSkeleton } from '@/components/skeleton-loading'
+import { getProfilePreference, setProfile as saveProfileToStorage } from '@/lib/profile-storage'
 
 interface CardRow {
   id: string
@@ -48,16 +49,21 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
   const [isAdding, setIsAdding] = useState(false)
   const [sortKey, setSortKey] = useState<'name' | 'marketPrice'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  // Initialize profile from localStorage immediately to avoid mismatch
-  const [profile, setProfile] = useState<string>(() => {
+  // Initialize profile from localStorage/cookies immediately to avoid mismatch
+  const [profile, setProfileState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      const savedProfile = window.localStorage.getItem('watchlist:profile')
-      if (savedProfile && profiles.includes(savedProfile)) {
-        return savedProfile
-      }
+      return getProfilePreference(profiles)
     }
     return profiles[0]
   })
+
+  // Wrapper to sync storage when profile changes
+  const updateProfile = (newProfile: string) => {
+    setProfileState(newProfile)
+    if (typeof window !== 'undefined') {
+      saveProfileToStorage(newProfile) // Sync both localStorage and cookies
+    }
+  }
   const queryClient = useQueryClient()
 
   // Handle profile changes from ProfilePills component
@@ -65,7 +71,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     const onProfileChange = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (detail && profiles.includes(detail)) {
-        setProfile(detail)
+        updateProfile(detail)
         // Invalidate and immediately refetch for the new profile
         queryClient.invalidateQueries({ queryKey: ['cards'] })
         queryClient.refetchQueries({ queryKey: ['cards', detail] })
@@ -83,7 +89,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('watchlist:profile', profile)
+      saveProfileToStorage(profile) // Sync both localStorage and cookies
     }
   }, [profile])
 
