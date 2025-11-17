@@ -29,14 +29,15 @@ const nextConfig: NextConfig = {
   async headers() {
     const isDev = process.env.NODE_ENV === 'development';
 
-    // In development, Next.js needs 'unsafe-eval' for HMR and webpack
+    // Next.js requires 'unsafe-inline' for inline scripts in production
+    // In development, also needs 'unsafe-eval' for HMR and webpack
     const scriptSrc = isDev
       ? "'self' 'unsafe-eval' 'unsafe-inline'"
-      : "'self'";
+      : "'self' 'unsafe-inline'";
 
     const connectSrc = isDev
       ? "'self' ws: wss:"  // Allow WebSocket connections for HMR
-      : "'self'";
+      : "'self' https:";
 
     return [
       {
