@@ -27,6 +27,17 @@ const nextConfig: NextConfig = {
   },
   // Security headers
   async headers() {
+    const isDev = process.env.NODE_ENV === 'development';
+
+    // In development, Next.js needs 'unsafe-eval' for HMR and webpack
+    const scriptSrc = isDev
+      ? "'self' 'unsafe-eval' 'unsafe-inline'"
+      : "'self'";
+
+    const connectSrc = isDev
+      ? "'self' ws: wss:"  // Allow WebSocket connections for HMR
+      : "'self'";
+
     return [
       {
         source: '/(.*)',
@@ -53,7 +64,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'none';",
+            value: `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src ${connectSrc}; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'none';`,
           },
         ],
       },

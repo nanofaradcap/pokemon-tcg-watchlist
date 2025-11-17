@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { getProfilePreference, setProfile } from '@/lib/profile-storage'
+import { getProfilePreference, setProfile as saveProfile } from '@/lib/profile-storage'
 
 const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
 
@@ -11,38 +11,18 @@ interface ProfilePillsProps {
 }
 
 export function ProfilePills({ profiles = defaultProfiles }: ProfilePillsProps) {
-  const [profile, setProfile] = useState<string>(profiles[0])
-  const [isClient, setIsClient] = useState(false)
-
-  useEffect(() => {
-    setIsClient(true)
+  const [profile, setProfile] = useState<string>(() => {
+    // Initialize from storage on client-side only
     if (typeof window !== 'undefined') {
-      const savedProfile = getProfilePreference(profiles)
-      setProfile(savedProfile)
+      return getProfilePreference(profiles)
     }
-  }, [profiles])
+    return profiles[0]
+  })
 
   const handleSelect = (p: string) => {
     setProfile(p)
-    if (typeof window !== 'undefined') {
-      setProfile(p) // Sync both localStorage and cookies
-      window.dispatchEvent(new CustomEvent('watchlist:profile-change', { detail: p }))
-    }
-  }
-
-  // Show skeleton loading until client-side initialization
-  if (!isClient) {
-    return (
-      <div className="flex items-center gap-2 flex-wrap">
-        {profiles.map((p) => (
-          <div
-            key={p}
-            className="h-9 px-3 py-2 animate-pulse rounded-md bg-muted border"
-            style={{ width: `${p.length * 8 + 24}px` }} // Approximate width based on text length
-          />
-        ))}
-      </div>
-    )
+    saveProfile(p) // Sync both localStorage and cookies
+    window.dispatchEvent(new CustomEvent('watchlist:profile-change', { detail: p }))
   }
 
   return (
