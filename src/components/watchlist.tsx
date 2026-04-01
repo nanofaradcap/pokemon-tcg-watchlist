@@ -107,19 +107,69 @@ const buildImageCandidates = (card: CardRow): string[] => {
   return Array.from(candidates)
 }
 
+const getPriceChartingSourceUrl = (card: CardRow): string | undefined => {
+  if (card.url?.includes('pricecharting.com')) {
+    return card.url
+  }
+  return card.mergedUrls?.find((url) => typeof url === 'string' && url.includes('pricecharting.com'))
+}
+
 function CardImage({ card, priority = false }: { card: CardRow; priority?: boolean }) {
   const [candidateIndex, setCandidateIndex] = useState(0)
   const [allCandidatesFailed, setAllCandidatesFailed] = useState(false)
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(null)
+  const [hasTriedResolve, setHasTriedResolve] = useState(false)
+  const [isResolving, setIsResolving] = useState(false)
 
   const mergedUrlsKey = card.mergedUrls?.join('|') ?? ''
-  const imageCandidates = buildImageCandidates(card)
+  const priceChartingSourceUrl = getPriceChartingSourceUrl(card)
+  const imageCandidates = (() => {
+    if (!resolvedImageUrl) return buildImageCandidates(card)
+    const baseCandidates = buildImageCandidates(card)
+    return Array.from(new Set([resolvedImageUrl, ...baseCandidates]))
+  })()
 
   useEffect(() => {
     setCandidateIndex(0)
     setAllCandidatesFailed(false)
+    setResolvedImageUrl(null)
+    setHasTriedResolve(false)
+    setIsResolving(false)
   }, [card.id, card.imageUrl, card.productId, card.url, mergedUrlsKey])
 
-  if (allCandidatesFailed || imageCandidates.length === 0) {
+  useEffect(() => {
+    if (!allCandidatesFailed || hasTriedResolve || !priceChartingSourceUrl) return
+
+    let cancelled = false
+    setHasTriedResolve(true)
+    setIsResolving(true)
+
+    fetch(`/api/images/pricecharting?sourceUrl=${encodeURIComponent(priceChartingSourceUrl)}`, {
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) return null
+        const data = await response.json().catch(() => null)
+        return typeof data?.imageUrl === 'string' ? data.imageUrl : null
+      })
+      .then((imageUrl) => {
+        if (cancelled || !imageUrl) return
+        setResolvedImageUrl(imageUrl)
+        setCandidateIndex(0)
+        setAllCandidatesFailed(false)
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsResolving(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [allCandidatesFailed, hasTriedResolve, priceChartingSourceUrl])
+
+  if ((allCandidatesFailed && !isResolving) || imageCandidates.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
         No image
