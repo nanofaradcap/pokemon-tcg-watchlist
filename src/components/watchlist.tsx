@@ -13,7 +13,7 @@ import { getProfilePreference, setProfile as saveProfileToStorage } from '@/lib/
 interface CardRow {
   id: string
   url: string
-  productId: string
+  productId?: string
   name: string
   setDisplay?: string
   No?: string
@@ -35,6 +35,108 @@ interface CardRow {
   isMerged?: boolean
   mergedUrls?: string[]
   mergedSources?: string[]
+}
+
+const TCGPLAYER_PRODUCT_ID_REGEX = /\/product\/(\d+)(?:\/|$|\?)/
+
+const extractProductIdFromUrl = (url?: string): string | undefined => {
+  if (!url || typeof url !== 'string') return undefined
+  const match = url.match(TCGPLAYER_PRODUCT_ID_REGEX)
+  return match?.[1]
+}
+
+const decodeNextImageProxyUrl = (url?: string): string | undefined => {
+  if (!url || typeof url !== 'string') return undefined
+
+  try {
+    const parsedUrl = new URL(url)
+    if (!parsedUrl.pathname.includes('/_next/image')) return undefined
+    const innerUrl = parsedUrl.searchParams.get('url')
+    if (!innerUrl) return undefined
+    const decoded = decodeURIComponent(innerUrl)
+    if (/^https?:\/\//i.test(decoded)) {
+      return decoded
+    }
+  } catch {
+    return undefined
+  }
+
+  return undefined
+}
+
+const buildImageCandidates = (card: CardRow): string[] => {
+  const candidates = new Set<string>()
+
+  const addCandidate = (url?: string) => {
+    if (!url || typeof url !== 'string') return
+    const trimmed = url.trim()
+    if (!trimmed || !/^https?:\/\//i.test(trimmed)) return
+    candidates.add(trimmed)
+  }
+
+  // If a source accidentally stores a Next image proxy URL, prefer the decoded direct image first.
+  addCandidate(decodeNextImageProxyUrl(card.imageUrl))
+  addCandidate(card.imageUrl)
+
+  const mergedProductId =
+    extractProductIdFromUrl(card.url) ??
+    card.mergedUrls?.map(extractProductIdFromUrl).find((id) => Boolean(id))
+
+  const productId = (() => {
+    const trimmedProductId = card.productId?.trim()
+    if (trimmedProductId && /^\d+$/.test(trimmedProductId)) {
+      return trimmedProductId
+    }
+    return mergedProductId
+  })()
+
+  if (productId) {
+    addCandidate(`https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`)
+    addCandidate(`https://product-images.tcgplayer.com/fit-in/1044x1044/${productId}.jpg`)
+    addCandidate(`https://product-images.tcgplayer.com/${productId}.jpg`)
+  }
+
+  return Array.from(candidates)
+}
+
+function CardImage({ card, priority = false }: { card: CardRow; priority?: boolean }) {
+  const [candidateIndex, setCandidateIndex] = useState(0)
+  const [allCandidatesFailed, setAllCandidatesFailed] = useState(false)
+
+  const mergedUrlsKey = card.mergedUrls?.join('|') ?? ''
+  const imageCandidates = buildImageCandidates(card)
+
+  useEffect(() => {
+    setCandidateIndex(0)
+    setAllCandidatesFailed(false)
+  }, [card.id, card.imageUrl, card.productId, card.url, mergedUrlsKey])
+
+  if (allCandidatesFailed || imageCandidates.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+        No image
+      </div>
+    )
+  }
+
+  const imageSrc = imageCandidates[candidateIndex] || imageCandidates[0]
+
+  return (
+    <img
+      src={imageSrc}
+      alt={card.name}
+      loading={priority ? 'eager' : 'lazy'}
+      referrerPolicy="no-referrer"
+      className="w-full h-full object-contain"
+      onError={() => {
+        if (candidateIndex < imageCandidates.length - 1) {
+          setCandidateIndex(candidateIndex + 1)
+          return
+        }
+        setAllCandidatesFailed(true)
+      }}
+    />
+  )
 }
 
 const defaultProfiles = ['Chen', 'Tiff', 'Pho', 'Ying'] as const
@@ -257,11 +359,6 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     if (price === null || price === undefined) return '—'
     return `$${price.toFixed(2)}`
   }
-
-  const getImageUrl = (card: CardRow) => {
-    return card.imageUrl || `https://tcgplayer-cdn.tcgplayer.com/product/${card.productId}_in_1000x1000.jpg`
-  }
-
   // Price display component for prominent pricing
   const PriceDisplay = ({ card, tcgUrl, priceChartingUrl }: { card: CardRow; tcgUrl?: string; priceChartingUrl?: string }) => {
     const PriceLink = ({ label, price, url }: { label: string; price?: number; url?: string }) => {
@@ -362,15 +459,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
 
         {/* Large Image - Responsive sizing */}
         <div className="w-full aspect-square rounded-md overflow-hidden bg-muted">
-          <img
-            src={getImageUrl(card)}
-            alt={card.name}
-            loading={priority ? 'eager' : 'lazy'}
-            className="w-full h-full object-contain"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
+          <CardImage card={card} priority={priority} />
         </div>
 
         {/* Prominent Pricing Section */}

@@ -46,6 +46,7 @@ export interface CardDisplayData {
   id: string
   name: string
   url: string
+  productId?: string
   isMerged: boolean
   sourceCount: number
   sources: Array<{
@@ -903,6 +904,10 @@ export class CardService {
       id: card.id,
       name: card.name,
       url: card.sources[0]?.url || '',
+      productId:
+        card.sources.find((source) => source.sourceType === 'tcgplayer' && source.productId)?.productId ??
+        card.sources.find((source) => source.productId)?.productId ??
+        undefined,
       isMerged: card.sources.length > 1,
       sourceCount: card.sources.length,
       sources: card.sources.map(s => ({
