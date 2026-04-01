@@ -208,12 +208,17 @@ export async function scrapePriceCharting(url: string): Promise<PriceChartingDat
             }
           }
 
-          // Extract image URL
+          // Extract image URL.
+          // Prefer anchor href because PriceCharting links directly to canonical full-size image.
           let imageUrl = ''
-          const imageElement = document.querySelector('#extra-images img') as HTMLImageElement
-          if (imageElement?.src) {
-            // Convert from 240px to 1600px version
-            imageUrl = imageElement.src.replace('/240.jpg', '/1600.jpg')
+          const imageLinkElement = document.querySelector('#extra-images a[href*="images.pricecharting.com/"]') as HTMLAnchorElement | null
+          const coverImageElement = document.querySelector('#product_details .cover img') as HTMLImageElement | null
+          const galleryImageElement = document.querySelector('#extra-images img') as HTMLImageElement | null
+
+          const imageCandidate = imageLinkElement?.href || coverImageElement?.src || galleryImageElement?.src || ''
+          if (imageCandidate) {
+            // If we got thumbnail size, upgrade to full-size image.
+            imageUrl = imageCandidate.replace(/\/240\.jpg(?:\?.*)?$/, '/1600.jpg')
           }
 
           return {

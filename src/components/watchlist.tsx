@@ -72,6 +72,14 @@ const buildImageCandidates = (card: CardRow): string[] => {
     const trimmed = url.trim()
     if (!trimmed || !/^https?:\/\//i.test(trimmed)) return
     candidates.add(trimmed)
+
+    // PriceCharting can serve either thumbnail or full-size; keep both as fallbacks.
+    if (trimmed.includes('images.pricecharting.com/')) {
+      const fullSize = trimmed.replace(/\/240\.jpg(?:\?.*)?$/, '/1600.jpg')
+      const thumbnail = trimmed.replace(/\/1600\.jpg(?:\?.*)?$/, '/240.jpg')
+      candidates.add(fullSize)
+      candidates.add(thumbnail)
+    }
   }
 
   // If a source accidentally stores a Next image proxy URL, prefer the decoded direct image first.

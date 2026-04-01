@@ -600,10 +600,18 @@ export class CardService {
       updateData.rarity = newSourceData.rarity
     }
     
-    // Update imageUrl if new data is available and current is empty
-    if (typeof newSourceData.imageUrl === 'string' && newSourceData.imageUrl.trim() && 
-        (!existingCard.imageUrl || existingCard.imageUrl.trim() === '')) {
-      updateData.imageUrl = newSourceData.imageUrl
+    // Update imageUrl when:
+    // 1) current value is empty, or
+    // 2) this is PriceCharting data and image URL changed (allows fixing stale/broken legacy URLs)
+    if (typeof newSourceData.imageUrl === 'string' && newSourceData.imageUrl.trim()) {
+      const nextImageUrl = newSourceData.imageUrl.trim()
+      const currentImageUrl = existingCard.imageUrl?.trim() || ''
+      const isPriceChartingUpdate = sourceType === 'pricecharting'
+      const hasPriceChartingImage = currentImageUrl.includes('images.pricecharting.com/')
+
+      if (!currentImageUrl || (isPriceChartingUpdate && hasPriceChartingImage && currentImageUrl !== nextImageUrl)) {
+        updateData.imageUrl = nextImageUrl
+      }
     }
     
     // Update No (card number) if new data is available and current is empty
