@@ -3,6 +3,8 @@
 import { Watchlist } from '@/components/watchlist'
 import { ProfilePills } from '@/components/profile-pills'
 
+const workProfiles = ['Tiff', 'Candice', 'Rachel', 'Roxanne', 'Connor'] as const
+
 export default function WorkPage() {
   return (
     <div className="min-h-screen bg-background">
@@ -14,9 +16,9 @@ export default function WorkPage() {
               Track Pokémon card prices from TCGplayer and PriceCharting
             </p>
           </div>
-          <ProfilePills profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor']} />
+          <ProfilePills profiles={workProfiles} />
         </div>
-        <Watchlist profiles={['Tiff', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor']} />
+        <Watchlist profiles={workProfiles} />
       </div>
     </div>
   )
