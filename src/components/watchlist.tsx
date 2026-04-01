@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { RefreshCw, Plus, Download, MoreHorizontal, Trash2 } from 'lucide-react'
-import Image from 'next/image'
 import { WatchlistSkeleton } from '@/components/skeleton-loading'
 import { getProfilePreference, setProfile as saveProfileToStorage } from '@/lib/profile-storage'
 
@@ -362,17 +361,14 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
         </div>
 
         {/* Large Image - Responsive sizing */}
-        <div className="w-full aspect-square relative rounded-md overflow-hidden bg-muted">
-          <Image
+        <div className="w-full aspect-square rounded-md overflow-hidden bg-muted">
+          <img
             src={getImageUrl(card)}
             alt={card.name}
-            fill
-            priority={priority}
-            className="object-contain"
-            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 280px"
+            loading={priority ? 'eager' : 'lazy'}
+            className="w-full h-full object-contain"
             onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
+              e.currentTarget.style.display = 'none'
             }}
           />
         </div>
