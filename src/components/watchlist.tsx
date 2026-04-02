@@ -114,6 +114,28 @@ const getPriceChartingSourceUrl = (card: CardRow): string | undefined => {
   return card.mergedUrls?.find((url) => typeof url === 'string' && url.includes('pricecharting.com'))
 }
 
+const priceChartingImageResolverCache = new Map<string, Promise<string | null>>()
+
+const resolvePriceChartingImageUrl = async (sourceUrl: string): Promise<string | null> => {
+  const cached = priceChartingImageResolverCache.get(sourceUrl)
+  if (cached) {
+    return cached
+  }
+
+  const resolverPromise = fetch(`/api/images/pricecharting?sourceUrl=${encodeURIComponent(sourceUrl)}`, {
+    cache: 'no-store',
+  })
+    .then(async (response) => {
+      if (!response.ok) return null
+      const data = await response.json().catch(() => null)
+      return typeof data?.imageUrl === 'string' ? data.imageUrl : null
+    })
+    .catch(() => null)
+
+  priceChartingImageResolverCache.set(sourceUrl, resolverPromise)
+  return resolverPromise
+}
+
 function CardImage({ card, priority = false }: { card: CardRow; priority?: boolean }) {
   const [candidateIndex, setCandidateIndex] = useState(0)
   const [allCandidatesFailed, setAllCandidatesFailed] = useState(false)
@@ -137,6 +159,35 @@ function CardImage({ card, priority = false }: { card: CardRow; priority?: boole
     setIsResolving(false)
   }, [card.id, card.imageUrl, card.productId, card.url, mergedUrlsKey])
 
+  // Proactively resolve current PriceCharting image URL.
+  // This avoids relying only on <img onError>, which can be delayed/sticky for some stale URLs.
+  useEffect(() => {
+    if (!priceChartingSourceUrl) return
+
+    let cancelled = false
+    setIsResolving(true)
+
+    resolvePriceChartingImageUrl(priceChartingSourceUrl)
+      .then((imageUrl) => {
+        if (cancelled || !imageUrl) return
+        setResolvedImageUrl((current) => {
+          if (current === imageUrl) return current
+          return imageUrl
+        })
+        setCandidateIndex(0)
+        setAllCandidatesFailed(false)
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsResolving(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [priceChartingSourceUrl])
+
   useEffect(() => {
     if (!allCandidatesFailed || hasTriedResolve || !priceChartingSourceUrl) return
 
@@ -144,14 +195,7 @@ function CardImage({ card, priority = false }: { card: CardRow; priority?: boole
     setHasTriedResolve(true)
     setIsResolving(true)
 
-    fetch(`/api/images/pricecharting?sourceUrl=${encodeURIComponent(priceChartingSourceUrl)}`, {
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        if (!response.ok) return null
-        const data = await response.json().catch(() => null)
-        return typeof data?.imageUrl === 'string' ? data.imageUrl : null
-      })
+    resolvePriceChartingImageUrl(priceChartingSourceUrl)
       .then((imageUrl) => {
         if (cancelled || !imageUrl) return
         setResolvedImageUrl(imageUrl)
