@@ -359,8 +359,10 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
         body: JSON.stringify({ cardIds: [id], profile }),
       })
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to refresh card')
+        const text = await response.text()
+        let message = 'Failed to refresh card'
+        try { message = JSON.parse(text).error || message } catch { /* non-JSON error page */ }
+        throw new Error(message)
       }
       return response.json()
     },
@@ -386,8 +388,10 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
         body: JSON.stringify({ profile }),
       })
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to refresh cards')
+        const text = await response.text()
+        let message = 'Failed to refresh cards'
+        try { message = JSON.parse(text).error || message } catch { /* non-JSON error page */ }
+        throw new Error(message)
       }
       return response.json()
     },
