@@ -350,63 +350,6 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     },
   })
 
-  // Refresh single card mutation
-  const refreshCardMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch('/api/cards/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardIds: [id], profile }),
-      })
-      if (!response.ok) {
-        const text = await response.text()
-        let message = 'Failed to refresh card'
-        try { message = JSON.parse(text).error || message } catch { /* non-JSON error page */ }
-        throw new Error(message)
-      }
-      return response.json()
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
-      if (data.summary.failed > 0) {
-        toast.warning(`Refreshed with ${data.summary.failed} failures`)
-      } else {
-        toast.success('Card refreshed successfully')
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
-  })
-
-  // Refresh all cards mutation
-  const refreshAllMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/cards/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile }),
-      })
-      if (!response.ok) {
-        const text = await response.text()
-        let message = 'Failed to refresh cards'
-        try { message = JSON.parse(text).error || message } catch { /* non-JSON error page */ }
-        throw new Error(message)
-      }
-      return response.json()
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['cards', profile] })
-      toast.success(`Refreshed ${data.summary.successful} cards successfully`)
-      if (data.summary.failed > 0) {
-        toast.warning(`${data.summary.failed} cards failed to refresh`)
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
-  })
-
   // Delete card mutation
   const deleteCardMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -441,15 +384,6 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     }
   }
 
-  const handleRefreshCard = (id: string) => {
-    refreshCardMutation.mutate(id)
-  }
-
-  const handleRefreshAll = () => {
-    if (cards.length === 0) return
-    refreshAllMutation.mutate()
-  }
-
   const handleDeleteCard = (id: string) => {
     if (confirm('Are you sure you want to delete this card?')) {
       deleteCardMutation.mutate(id)
@@ -458,6 +392,19 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
 
   const handleExportCSV = () => {
     window.open('/api/export', '_blank')
+  }
+
+  function formatLastUpdated(dateStr?: string): string {
+    if (!dateStr) return 'not yet synced'
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days < 7) return `${days}d ago`
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
 
@@ -572,18 +519,10 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
         <PriceDisplay card={card} tcgUrl={tcgUrl} priceChartingUrl={priceChartingUrl} />
 
         {/* Actions Footer - Compact */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t mt-auto">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleRefreshCard(card.id)}
-            disabled={refreshCardMutation.isPending}
-            className="h-8 w-8 md:h-9 md:w-auto md:px-3 p-0"
-            title="Refresh card"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshCardMutation.isPending ? 'animate-spin' : ''} md:mr-2`} />
-            <span className="hidden md:inline">Refresh</span>
-          </Button>
+        <div className="flex items-center justify-between gap-2 pt-2 border-t mt-auto">
+          <span className="text-xs text-muted-foreground">
+            {formatLastUpdated(card.lastCheckedAt)}
+          </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 md:h-9 md:w-auto md:px-3 p-0" title="More actions">
@@ -711,14 +650,6 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
         </form>
         
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRefreshAll}
-            disabled={refreshAllMutation.isPending || cards.length === 0}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshAllMutation.isPending ? 'animate-spin' : ''}`} />
-            Refresh All
-          </Button>
           <Button
             variant="outline"
             onClick={handleExportCSV}
