@@ -134,68 +134,35 @@ class SmartBatcher {
   }
 
   async updateCardPricing(card, scrapedData, sourceId) {
-    // Clear existing prices for this source
-    await prisma.cardPrice.deleteMany({
-      where: { sourceId }
-    })
-
-    // Add new prices
     const prices = []
-    if (scrapedData.marketPrice) {
-      prices.push({
-        sourceId,
-        priceType: 'market',
-        price: scrapedData.marketPrice
-      })
-    }
-    if (scrapedData.ungradedPrice) {
-      prices.push({
-        sourceId,
-        priceType: 'ungraded',
-        price: scrapedData.ungradedPrice
-      })
-    }
-    if (scrapedData.grade7Price) {
-      prices.push({
-        sourceId,
-        priceType: 'grade7',
-        price: scrapedData.grade7Price
-      })
-    }
-    if (scrapedData.grade8Price) {
-      prices.push({
-        sourceId,
-        priceType: 'grade8',
-        price: scrapedData.grade8Price
-      })
-    }
-    if (scrapedData.grade9Price) {
-      prices.push({
-        sourceId,
-        priceType: 'grade9',
-        price: scrapedData.grade9Price
-      })
-    }
-    if (scrapedData.grade95Price) {
-      prices.push({
-        sourceId,
-        priceType: 'grade95',
-        price: scrapedData.grade95Price
-      })
-    }
-    if (scrapedData.grade10Price) {
-      prices.push({
-        sourceId,
-        priceType: 'grade10',
-        price: scrapedData.grade10Price
-      })
-    }
+    if (scrapedData.marketPrice) prices.push({ sourceId, priceType: 'market', price: scrapedData.marketPrice })
+    if (scrapedData.ungradedPrice) prices.push({ sourceId, priceType: 'ungraded', price: scrapedData.ungradedPrice })
+    if (scrapedData.grade7Price) prices.push({ sourceId, priceType: 'grade7', price: scrapedData.grade7Price })
+    if (scrapedData.grade8Price) prices.push({ sourceId, priceType: 'grade8', price: scrapedData.grade8Price })
+    if (scrapedData.grade9Price) prices.push({ sourceId, priceType: 'grade9', price: scrapedData.grade9Price })
+    if (scrapedData.grade95Price) prices.push({ sourceId, priceType: 'grade95', price: scrapedData.grade95Price })
+    if (scrapedData.grade10Price) prices.push({ sourceId, priceType: 'grade10', price: scrapedData.grade10Price })
 
-    // Insert new prices
-    if (prices.length > 0) {
-      await prisma.cardPrice.createMany({
-        data: prices
+    // Upsert each price in parallel (avoids full wipe when prices haven't changed)
+    await Promise.all(prices.map(priceData =>
+      prisma.cardPrice.upsert({
+        where: { sourceId_priceType: { sourceId: priceData.sourceId, priceType: priceData.priceType } },
+        update: { price: priceData.price },
+        create: priceData
       })
+    ))
+
+    // Delete price types that no longer exist for this source
+    if (prices.length > 0) {
+      await prisma.cardPrice.deleteMany({
+        where: {
+          sourceId,
+          priceType: { notIn: prices.map(p => p.priceType) }
+        }
+      })
+    } else {
+      // No prices scraped — clear all (source may be unavailable)
+      await prisma.cardPrice.deleteMany({ where: { sourceId } })
     }
 
     // Update source lastCheckedAt

@@ -35,18 +35,17 @@ model Card {
 }
 
 model CardSource {
-  id            String         @id @default(cuid())
+  id            String      @id @default(cuid())
   cardId        String
   sourceType    String
   url           String
   productId     String?
-  currency      String         @default("USD")
+  currency      String      @default("USD")
   lastCheckedAt DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   prices        CardPrice[]
-  card          Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  priceHistory  PriceHistory[]
+  card          Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([cardId, sourceType])
   @@index([cardId])
@@ -69,20 +68,6 @@ model CardPrice {
   @@map("card_prices")
 }
 
-model PriceHistory {
-  id        String     @id @default(cuid())
-  sourceId  String
-  priceType String
-  oldPrice  Decimal?   @db.Decimal(10, 2)
-  newPrice  Decimal?   @db.Decimal(10, 2)
-  changedAt DateTime   @default(now())
-  source    CardSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  @@index([sourceId])
-  @@index([changedAt])
-  @@map("price_history")
-}
-
 model UserCard {
   id        String   @id @default(cuid())
   userId    String
@@ -94,6 +79,5 @@ model UserCard {
   @@unique([userId, cardId])
   @@index([userId])
   @@index([cardId])
-  @@index([userId, cardId]) // Composite index for main query
   @@map("user_cards")
 }

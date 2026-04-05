@@ -471,7 +471,8 @@ export class CardService {
           userCards: {
             some: { cardId: cardId }
           }
-        }
+        },
+        select: { name: true }
       })
       
       await Promise.all(profiles.map(p => this.invalidateProfileCache(p.name)))
@@ -526,29 +527,26 @@ export class CardService {
   }
 
   private async findMatchingCards(tx: PrismaTransaction, cardMatch: CardMatch): Promise<CardWithSources[]> {
-    // Get all cards and use the improved matching logic
+    // Step 1: fetch only the fields needed for name/number matching
     const allCards = await tx.card.findMany({
+      select: { id: true, name: true, No: true }
+    })
+
+    const matchingIds = allCards
+      .filter(card => areCardsSame({ name: card.name, number: card.No || '' }, cardMatch))
+      .map(card => card.id)
+
+    if (matchingIds.length === 0) return []
+
+    // Step 2: fetch full data only for the matched cards (0 or 1 in practice)
+    return tx.card.findMany({
+      where: { id: { in: matchingIds } },
       include: {
         sources: {
-          include: {
-            prices: true
-          }
+          include: { prices: true }
         }
       }
     })
-
-    // Filter cards using the improved matching logic
-    const matchingCards = allCards.filter(card => {
-      // Use the improved card matching logic
-      const existingCardMatch = {
-        name: card.name,
-        number: card.No || ''
-      }
-      
-      return areCardsSame(existingCardMatch, cardMatch)
-    })
-
-    return matchingCards
   }
 
   private async mergeWithExisting(

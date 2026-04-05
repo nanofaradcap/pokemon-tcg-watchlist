@@ -8,7 +8,11 @@ export async function GET() {
       include: {
         sources: {
           include: {
-            prices: true
+            prices: {
+              where: {
+                priceType: { in: ['market', 'ungraded', 'grade9', 'grade10'] }
+              }
+            }
           }
         }
       },
