@@ -16,7 +16,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://cards.chencat.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: "Pokémon TCG Watchlist",
   description: "Track Pokémon card prices from TCGplayer and PriceCharting",
   keywords: ["pokemon", "tcg", "trading cards", "prices", "watchlist", "tcgplayer", "pricecharting", "graded cards"],
@@ -25,7 +28,7 @@ export const metadata: Metadata = {
     title: "Pokémon TCG Watchlist",
     description: "Track Pokémon card prices from TCGplayer and PriceCharting",
     type: "website",
-    url: "https://chencat.com",
+    url: appUrl,
   },
   twitter: {
     card: "summary",

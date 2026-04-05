@@ -43,7 +43,7 @@
    TCGPLAYER_PUBLIC_KEY=
    TCGPLAYER_PRIVATE_KEY=
    NODE_ENV=production
-   NEXT_PUBLIC_APP_URL=https://chencat.com
+   NEXT_PUBLIC_APP_URL=https://cards.chencat.com
    ```
 
 3. **Deploy**:
@@ -55,13 +55,14 @@
 1. **In Vercel Dashboard**:
    - Go to your project
    - Go to Settings > Domains
-   - Add `chencat.com` and `www.chencat.com`
+   - Add `cards.chencat.com`
 
 2. **In Namecheap**:
    - Go to your domain management
    - Update DNS records:
-     - Type: A Record, Host: @, Value: `76.76.19.61`
-     - Type: CNAME, Host: www, Value: `cname.vercel-dns.com`
+     - Type: CNAME, Host: cards, Value: use the exact target shown in Vercel Domain Settings (often `*.vercel-dns-*.com`)
+   - (Optional redirect setup)
+     - Keep `@` and `www` connected in Vercel if you want redirects to `https://cards.chencat.com`
 
 ## Step 4: Database Migration
 
@@ -78,7 +79,7 @@ npx prisma db push
 
 ## Step 5: Verify Deployment
 
-1. Visit `https://chencat.com`
+1. Visit `https://cards.chencat.com`
 2. Test adding a card
 3. Verify all functionality works
 
@@ -93,7 +94,7 @@ npx prisma db push
 | `TCGPLAYER_PUBLIC_KEY` | TCGplayer API public key | No | - |
 | `TCGPLAYER_PRIVATE_KEY` | TCGplayer API private key | No | - |
 | `NODE_ENV` | Environment mode | Yes | production |
-| `NEXT_PUBLIC_APP_URL` | Public app URL | Yes | https://chencat.com |
+| `NEXT_PUBLIC_APP_URL` | Public app URL | Yes | https://cards.chencat.com |
 
 ## Troubleshooting
 
