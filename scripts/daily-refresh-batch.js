@@ -46,15 +46,14 @@ class SmartBatcher {
     this.log('Fetching all cards for refresh...')
     
     const cards = await prisma.card.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
         sources: {
-          include: {
-            prices: true
-          }
-        },
-        userCards: {
-          include: {
-            user: true
+          select: {
+            id: true,
+            url: true,
+            productId: true
           }
         }
       }
