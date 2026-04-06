@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { RefreshCw, Plus, Download, MoreHorizontal, Trash2 } from 'lucide-react'
+import { RefreshCw, Plus, MoreHorizontal, Trash2 } from 'lucide-react'
 import { WatchlistSkeleton } from '@/components/skeleton-loading'
 import { getProfilePreference, setProfile as saveProfileToStorage } from '@/lib/profile-storage'
 
@@ -390,10 +390,6 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     }
   }
 
-  const handleExportCSV = () => {
-    window.open('/api/export', '_blank')
-  }
-
   function formatLastUpdated(dateStr?: string): string {
     if (!dateStr) return 'not yet synced'
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -649,16 +645,6 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
           </Button>
         </form>
         
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleExportCSV}
-            disabled={cards.length === 0}
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
-        </div>
       </div>
 
       {/* Sort Controls */}
