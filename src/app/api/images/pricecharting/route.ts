@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import redis from '@/lib/redis'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,8 +35,28 @@ function extractPriceChartingImageUrl(html: string): string | null {
   return null
 }
 
+async function checkRateLimit(ip: string): Promise<boolean> {
+  if (!redis || !redis.isOpen) return true
+  const windowSecs = 60
+  const limit = 30
+  const key = `ratelimit:pricecharting:${ip}:${Math.floor(Date.now() / (windowSecs * 1000))}`
+  const count = await redis.incr(key)
+  if (count === 1) await redis.expire(key, windowSecs)
+  return count <= limit
+}
+
 export async function GET(req: NextRequest) {
   try {
+    const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown'
+    if (!(await checkRateLimit(ip))) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please try again later.' },
+        { status: 429 },
+      )
+    }
+
     const sourceUrl = req.nextUrl.searchParams.get('sourceUrl')
     if (!sourceUrl || !isAllowedPriceChartingUrl(sourceUrl)) {
       return NextResponse.json({ error: 'Invalid source URL' }, { status: 400 })

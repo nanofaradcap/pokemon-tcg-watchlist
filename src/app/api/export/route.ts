@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { checkApiSecret } from '@/lib/api-auth'
 
 // GET /api/export - Export cards as CSV
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     const cards = await prisma.card.findMany({
       include: {

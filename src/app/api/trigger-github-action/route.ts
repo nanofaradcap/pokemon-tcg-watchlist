@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkApiSecret } from '@/lib/api-auth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     console.log('🔄 Triggering GitHub Action for daily refresh...')
     
@@ -79,6 +83,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     const body = await req.json()
     const { batch_size, delay_minutes } = body

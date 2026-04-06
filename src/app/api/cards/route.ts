@@ -5,6 +5,7 @@ export const revalidate = 0 // Disable Next.js route cache
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cardService } from '@/lib/card-service'
+import { checkApiSecret } from '@/lib/api-auth'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor'] as const
 type Profile = typeof Profiles[number]
@@ -43,6 +44,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/cards - Add a new card
 export async function POST(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     const body = await req.json()
     const { url, profile } = AddCardSchema.parse(body)
@@ -75,6 +79,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/cards - Delete a card
 export async function DELETE(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     const { searchParams } = new URL(req.url)
     const cardId = searchParams.get('id')

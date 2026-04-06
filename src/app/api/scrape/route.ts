@@ -4,38 +4,29 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { scrapeWithPuppeteer } from '@/lib/puppeteer-scraping'
+import redis from '@/lib/redis'
 
 const BodySchema = z.object({
   url: z.string().url(),
 })
 
-// Simple in-memory rate limiting (for production, use Redis or similar)
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
-const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 10 // 10 requests per minute per IP
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now()
-  const userLimit = rateLimitMap.get(ip)
-  
-  if (!userLimit || now > userLimit.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW })
-    return true
-  }
-  
-  if (userLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return false
-  }
-  
-  userLimit.count++
-  return true
+async function checkRateLimit(ip: string): Promise<boolean> {
+  if (!redis || !redis.isOpen) return true
+  const windowSecs = 60
+  const limit = 10
+  const key = `ratelimit:scrape:${ip}:${Math.floor(Date.now() / (windowSecs * 1000))}`
+  const count = await redis.incr(key)
+  if (count === 1) await redis.expire(key, windowSecs)
+  return count <= limit
 }
 
 export async function POST(req: NextRequest) {
   try {
     // Rate limiting
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
-    if (!checkRateLimit(ip)) {
+    const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown'
+    if (!(await checkRateLimit(ip))) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please try again later.' },
         { status: 429 }

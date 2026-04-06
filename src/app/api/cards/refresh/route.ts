@@ -5,6 +5,7 @@ export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cardService } from '@/lib/card-service'
+import { checkApiSecret } from '@/lib/api-auth'
 
 const RefreshSchema = z.object({
   cardIds: z.array(z.string()).optional(),
@@ -13,6 +14,9 @@ const RefreshSchema = z.object({
 
 // POST /api/cards/refresh - Refresh card data
 export async function POST(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     const body = await req.json()
     const { cardIds, profile } = RefreshSchema.parse(body)

@@ -1,7 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { checkApiSecret } from '@/lib/api-auth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   const startTime = Date.now()
   
   try {

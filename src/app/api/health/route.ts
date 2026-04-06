@@ -10,8 +10,7 @@ export async function GET() {
     return NextResponse.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      database: 'connected',
-      environment: process.env.NODE_ENV || 'development'
+      database: 'connected'
     })
   } catch (error) {
     console.error('Health check failed:', error)
@@ -19,9 +18,7 @@ export async function GET() {
     return NextResponse.json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      database: 'disconnected',
-      environment: process.env.NODE_ENV || 'development',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      database: 'disconnected'
     }, { status: 503 })
   }
 }
