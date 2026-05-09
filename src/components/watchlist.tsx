@@ -6,9 +6,10 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { RefreshCw, Plus, MoreHorizontal, Trash2 } from 'lucide-react'
+import { RefreshCw, Plus, MoreHorizontal, Trash2, ExternalLink } from 'lucide-react'
 import { WatchlistSkeleton } from '@/components/skeleton-loading'
 import { getProfilePreference, setProfile as saveProfileToStorage } from '@/lib/profile-storage'
+import { buildTcgplayerAffiliateUrl, TCGPLAYER_AFFILIATE_DISCLOSURE } from '@/lib/affiliate-links'
 
 interface CardRow {
   id: string
@@ -410,7 +411,9 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
   }
   // Price display component for prominent pricing
   const PriceDisplay = ({ card, tcgUrl, priceChartingUrl }: { card: CardRow; tcgUrl?: string; priceChartingUrl?: string }) => {
-    const PriceLink = ({ label, price, url }: { label: string; price?: number; url?: string }) => {
+    const affiliateTcgUrl = buildTcgplayerAffiliateUrl(tcgUrl)
+
+    const PriceLink = ({ label, price, url, sponsored = false }: { label: string; price?: number; url?: string; sponsored?: boolean }) => {
       const priceText = formatPrice(price)
       if (url && price !== null && price !== undefined) {
         return (
@@ -419,7 +422,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
             <a
               href={url}
               target="_blank"
-              rel="noopener noreferrer"
+              rel={sponsored ? 'sponsored noopener noreferrer' : 'noopener noreferrer'}
               className="text-xl md:text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 hover:underline block"
             >
               {priceText}
@@ -440,7 +443,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline gap-3 md:gap-4">
-          <PriceLink label="TCG Price" price={card.marketPrice} url={tcgUrl} />
+          <PriceLink label="TCG Price" price={card.marketPrice} url={affiliateTcgUrl} sponsored />
           <PriceLink label="Ungraded" price={card.ungradedPrice} url={priceChartingUrl} />
         </div>
         <div className="hidden lg:flex gap-2">
@@ -489,6 +492,8 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
       }
     }
 
+    const affiliateTcgUrl = buildTcgplayerAffiliateUrl(tcgUrl)
+
     return (
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-card flex flex-col h-full">
         {/* Name Row - Compact */}
@@ -519,24 +524,39 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
           <span className="text-xs text-muted-foreground">
             {formatLastUpdated(card.lastCheckedAt)}
           </span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 md:h-9 md:w-auto md:px-3 p-0" title="More actions">
-                <MoreHorizontal className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">More</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {affiliateTcgUrl ? (
+              <Button asChild variant="outline" size="sm" className="h-8 px-2 md:px-3">
+                <a
+                  href={affiliateTcgUrl}
+                  target="_blank"
+                  rel="sponsored noopener noreferrer"
+                  aria-label={`View ${card.name} on TCGplayer`}
+                >
+                  <ExternalLink className="h-4 w-4 md:mr-1" />
+                  <span className="hidden md:inline">TCGplayer</span>
+                </a>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => handleDeleteCard(card.id)}
-                disabled={deleteCardMutation.isPending}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 md:h-9 md:w-auto md:px-3 p-0" title="More actions">
+                  <MoreHorizontal className="h-4 w-4 md:mr-2" />
+                  <span className="hidden md:inline">More</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => handleDeleteCard(card.id)}
+                  disabled={deleteCardMutation.isPending}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     )
@@ -645,6 +665,10 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
           </Button>
         </form>
         
+      </div>
+
+      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        {TCGPLAYER_AFFILIATE_DISCLOSURE}
       </div>
 
       {/* Sort Controls */}
