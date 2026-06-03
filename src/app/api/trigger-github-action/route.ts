@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkApiSecret } from '@/lib/api-auth'
 
+const DEFAULT_BATCH_SIZE = 10
+const DEFAULT_DELAY_MINUTES = 2
+const DEFAULT_DRY_RUN = false
+const DEFAULT_MAX_CARDS = ''
+
 export async function GET(req: NextRequest) {
   const authError = checkApiSecret(req)
   if (authError) return authError
 
   try {
-    console.log('🔄 Triggering GitHub Action for daily refresh...')
+    console.log('🔄 Triggering GitHub Action for card refresh...')
     
     // GitHub API endpoint to trigger workflow
     const githubToken = process.env.GITHUB_TOKEN
@@ -38,8 +43,10 @@ export async function GET(req: NextRequest) {
         body: JSON.stringify({
           ref: 'main', // Branch to run on
           inputs: {
-            batch_size: '5',
-            delay_minutes: '2'
+            batch_size: DEFAULT_BATCH_SIZE.toString(),
+            delay_minutes: DEFAULT_DELAY_MINUTES.toString(),
+            dry_run: DEFAULT_DRY_RUN.toString(),
+            max_cards: DEFAULT_MAX_CARDS
           }
         })
       }
@@ -63,7 +70,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'GitHub Action triggered successfully',
-      workflow: 'daily-refresh',
+      workflow: 'weekly-card-refresh',
       repository: `${repoOwner}/${repoName}`,
       timestamp: new Date().toISOString(),
       note: 'Check GitHub Actions tab to monitor progress'
@@ -88,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { batch_size, delay_minutes } = body
+    const { batch_size, delay_minutes, dry_run, max_cards } = body
     
     console.log('🔄 Triggering GitHub Action with custom parameters...')
     
@@ -119,8 +126,10 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           ref: 'main',
           inputs: {
-            batch_size: batch_size?.toString() || '5',
-            delay_minutes: delay_minutes?.toString() || '2'
+            batch_size: batch_size?.toString() || DEFAULT_BATCH_SIZE.toString(),
+            delay_minutes: delay_minutes?.toString() || DEFAULT_DELAY_MINUTES.toString(),
+            dry_run: dry_run?.toString() || DEFAULT_DRY_RUN.toString(),
+            max_cards: max_cards?.toString() || DEFAULT_MAX_CARDS
           }
         })
       }
@@ -142,8 +151,10 @@ export async function POST(req: NextRequest) {
       success: true,
       message: 'GitHub Action triggered with custom parameters',
       parameters: {
-        batch_size: batch_size || 5,
-        delay_minutes: delay_minutes || 2
+        batch_size: batch_size || DEFAULT_BATCH_SIZE,
+        delay_minutes: delay_minutes || DEFAULT_DELAY_MINUTES,
+        dry_run: dry_run || DEFAULT_DRY_RUN,
+        max_cards: max_cards || DEFAULT_MAX_CARDS
       },
       timestamp: new Date().toISOString()
     })

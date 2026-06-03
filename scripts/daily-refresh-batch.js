@@ -17,11 +17,22 @@ const { scrapeWithFallback } = require('../dist/lib/scraping-fallback')
 
 const prisma = new PrismaClient()
 
+function parseOptionalPositiveInt(value) {
+  const parsed = parseInt(value || '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseBoolean(value) {
+  return /^(1|true|yes)$/i.test(value || '')
+}
+
 class SmartBatcher {
   constructor() {
-    this.batchSize = parseInt(process.env.BATCH_SIZE || '5')
+    this.batchSize = parseInt(process.env.BATCH_SIZE || '10')
     this.delayMinutes = parseInt(process.env.DELAY_MINUTES || '2')
     this.delayMs = this.delayMinutes * 60 * 1000
+    this.maxCards = parseOptionalPositiveInt(process.env.MAX_CARDS)
+    this.dryRun = parseBoolean(process.env.DRY_RUN)
     this.logDir = path.join(process.cwd(), 'logs')
     this.ensureLogDir()
   }
@@ -60,7 +71,13 @@ class SmartBatcher {
     })
 
     this.log(`Found ${cards.length} cards to refresh`)
-    return cards
+    if (!this.maxCards) {
+      return cards
+    }
+
+    const limitedCards = cards.slice(0, this.maxCards)
+    this.log(`Limiting refresh to ${limitedCards.length} cards because MAX_CARDS=${this.maxCards}`)
+    return limitedCards
   }
 
   createBatches(items, batchSize) {
@@ -123,8 +140,12 @@ class SmartBatcher {
         scrapedData = await scrapeWithFallback(source.url)
       }
 
-      // Update the card with new pricing data
-      await this.updateCardPricing(card, scrapedData, source.id)
+      if (this.dryRun) {
+        this.log(`DRY_RUN enabled; skipped database update for ${card.name}`)
+      } else {
+        // Update the card with new pricing data
+        await this.updateCardPricing(card, scrapedData, source.id)
+      }
 
       return { success: true, cardId: card.id, cardName: card.name }
     } catch (error) {
@@ -180,8 +201,8 @@ class SmartBatcher {
 
   async processAllCards() {
     const startTime = Date.now()
-    this.log('🚀 Starting daily card refresh with smart batching')
-    this.log(`Configuration: batchSize=${this.batchSize}, delay=${this.delayMinutes}min`)
+    this.log('🚀 Starting card refresh with smart batching')
+    this.log(`Configuration: batchSize=${this.batchSize}, delay=${this.delayMinutes}min, dryRun=${this.dryRun}, maxCards=${this.maxCards || 'all'}`)
 
     try {
       const cards = await this.getAllCards()
@@ -220,7 +241,7 @@ class SmartBatcher {
       }
 
       const duration = Date.now() - startTime
-      this.log(`\n🎉 Daily refresh completed!`)
+      this.log(`\n🎉 Card refresh completed!`)
       this.log(`✅ Successful: ${totalResults.successful}`)
       this.log(`❌ Failed: ${totalResults.failed}`)
       this.log(`⏱️  Duration: ${Math.round(duration / 1000 / 60)} minutes`)
@@ -246,11 +267,11 @@ if (require.main === module) {
   const batcher = new SmartBatcher()
   batcher.processAllCards()
     .then(() => {
-      console.log('✅ Daily refresh completed successfully')
+      console.log('✅ Card refresh completed successfully')
       process.exit(0)
     })
     .catch((error) => {
-      console.error('❌ Daily refresh failed:', error)
+      console.error('❌ Card refresh failed:', error)
       process.exit(1)
     })
 }

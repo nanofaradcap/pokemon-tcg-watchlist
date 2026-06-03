@@ -9,11 +9,5 @@
     "src/app/api/**/*.ts": {
       "maxDuration": 30
     }
-  },
-  "crons": [
-    {
-      "path": "/api/trigger-github-action",
-      "schedule": "0 6 * * *"
-    }
-  ]
+  }
 }

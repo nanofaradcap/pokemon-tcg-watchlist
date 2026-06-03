@@ -1,21 +1,35 @@
-name: Daily Card Refresh
+name: Weekly Card Refresh
 
 on:
   schedule:
-    # Runs every day at 6:00 AM UTC
-    - cron: '0 6 * * *'
+    # Runs every Monday at 6:00 AM UTC
+    - cron: '0 6 * * 1'
   workflow_dispatch:
     inputs:
       batch_size:
         description: 'Number of cards to process per batch'
         required: false
-        default: '5'
+        default: '10'
         type: string
       delay_minutes:
         description: 'Delay between batches in minutes'
         required: false
         default: '2'
         type: string
+      max_cards:
+        description: 'Maximum number of cards to process (empty means all)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Skip database writes while still scraping'
+        required: false
+        default: 'false'
+        type: string
+
+concurrency:
+  group: weekly-card-refresh
+  cancel-in-progress: false
 
 jobs:
   refresh-cards:
@@ -42,8 +56,10 @@ jobs:
       - name: Refresh cards with smart batching
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          BATCH_SIZE: ${{ inputs.batch_size || '5' }}
+          BATCH_SIZE: ${{ inputs.batch_size || '10' }}
           DELAY_MINUTES: ${{ inputs.delay_minutes || '2' }}
+          MAX_CARDS: ${{ inputs.max_cards || '' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
           NODE_ENV: production
         run: node scripts/daily-refresh-batch.js
 
