@@ -271,6 +271,17 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         return Number.isFinite(parsed) && parsed > 0 ? parsed : null
       }
 
+      const parsePlainPrice = (value: unknown): number | null => {
+        if (typeof value === 'number') {
+          return Number.isFinite(value) && value > 0 ? value : null
+        }
+
+        if (typeof value !== 'string') return null
+
+        const parsed = parsePriceText(value) ?? Number(value.replace(/[^0-9.]/g, ''))
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+      }
+
       const cleanText = (value: string | null | undefined): string => (
         value?.replace(/\s+/g, ' ').trim() ?? ''
       )
@@ -358,6 +369,76 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
           }
         | null
 
+      const currentProductId = window.location.pathname.match(/\/product\/(\d+)/)?.[1] ?? ''
+
+      const findJsonLdOfferPrice = (): number | null => {
+        for (const script of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
+          if (!script.textContent) continue
+
+          try {
+            const parsed = JSON.parse(script.textContent) as unknown
+            const products = Array.isArray(parsed) ? parsed : [parsed]
+
+            for (const item of products) {
+              if (!item || typeof item !== 'object') continue
+
+              const product = item as Record<string, unknown>
+              const type = product['@type']
+              const isProduct = Array.isArray(type)
+                ? type.some((entry) => String(entry).toLowerCase() === 'product')
+                : String(type).toLowerCase() === 'product'
+
+              if (!isProduct) continue
+
+              const sku = typeof product.sku === 'string' ? product.sku : ''
+              if (currentProductId && sku && sku !== currentProductId) continue
+
+              const offers = Array.isArray(product.offers) ? product.offers : [product.offers]
+              for (const offer of offers) {
+                if (!offer || typeof offer !== 'object') continue
+
+                const offerRecord = offer as Record<string, unknown>
+                const currency = typeof offerRecord.priceCurrency === 'string' ? offerRecord.priceCurrency : ''
+                if (currency && !/^usd$/i.test(currency)) continue
+
+                const price = parsePlainPrice(offerRecord.price)
+                if (price !== null) return price
+              }
+            }
+          } catch {
+            // Ignore non-JSON-LD snippets that accidentally share this type.
+          }
+        }
+
+        return null
+      }
+
+      const findSelectorPrice = (selectors: string[]): number | null => {
+        for (const selector of selectors) {
+          for (const element of Array.from(document.querySelectorAll(selector))) {
+            const price = parsePriceText(cleanText(element.textContent))
+            if (price !== null) return price
+          }
+        }
+
+        return null
+      }
+
+      const findRowPrice = (labelPattern: RegExp): number | null => {
+        for (const row of Array.from(document.querySelectorAll('tr'))) {
+          const rowText = cleanText(row.textContent)
+          if (!labelPattern.test(rowText)) continue
+
+          const priceElement = row.querySelector(
+            '.price-points__upper__price, .price-points__lower__price, [class*="price" i]'
+          )
+          const price = parsePriceText(cleanText(priceElement?.textContent)) ?? parsePriceText(rowText)
+          if (price !== null) return price
+        }
+
+        return null
+      }
+
       const scriptMarketPrice = Array.from(document.scripts)
         .map((script) => {
           if (!script.textContent || !/market\s*price|marketprice|pricing/i.test(script.textContent)) {
@@ -373,6 +454,13 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
         .find((price): price is number => typeof price === 'number' && Number.isFinite(price) && price > 0)
 
       const nextDataMarketPrice = findMarketPriceInObject(nextData)
+      const spotlightPrice = findSelectorPrice([
+        '.spotlight__price',
+        '[class*="spotlight__price" i]',
+        '[data-testid*="spotlight" i] [class*="price" i]',
+      ])
+      const jsonLdOfferPrice = findJsonLdOfferPrice()
+      const recentSalePrice = findRowPrice(/most\s+recent\s+sale/i)
 
       // Market Price extraction - try selectors plus nearby label text.
       let marketPriceText = ''
@@ -526,6 +614,9 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
       return {
         marketPriceText,
         marketPrice: marketPriceNumber,
+        spotlightPrice,
+        jsonLdOfferPrice,
+        recentSalePrice,
         name,
         setDisplay,
         No,
@@ -539,8 +630,11 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
 
     // Normalize price
     const networkMarketPrice = chooseBestPriceCandidate(networkPriceCandidates)
-    const marketPrice = networkMarketPrice?.price ??
+    const marketPrice = data.spotlightPrice ??
+      data.jsonLdOfferPrice ??
+      data.recentSalePrice ??
       data.marketPrice ??
+      networkMarketPrice?.price ??
       parsePriceValue(data.marketPriceText, true)
 
     const canonicalImageUrl = `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`
