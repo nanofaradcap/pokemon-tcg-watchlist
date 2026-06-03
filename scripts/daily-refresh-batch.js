@@ -26,6 +26,10 @@ function parseBoolean(value) {
   return /^(1|true|yes)$/i.test(value || '')
 }
 
+function isValidPrice(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
 class SmartBatcher {
   constructor() {
     this.batchSize = parseInt(process.env.BATCH_SIZE || '10')
@@ -156,13 +160,22 @@ class SmartBatcher {
 
   async updateCardPricing(card, scrapedData, sourceId) {
     const prices = []
-    if (scrapedData.marketPrice) prices.push({ sourceId, priceType: 'market', price: scrapedData.marketPrice })
-    if (scrapedData.ungradedPrice) prices.push({ sourceId, priceType: 'ungraded', price: scrapedData.ungradedPrice })
-    if (scrapedData.grade7Price) prices.push({ sourceId, priceType: 'grade7', price: scrapedData.grade7Price })
-    if (scrapedData.grade8Price) prices.push({ sourceId, priceType: 'grade8', price: scrapedData.grade8Price })
-    if (scrapedData.grade9Price) prices.push({ sourceId, priceType: 'grade9', price: scrapedData.grade9Price })
-    if (scrapedData.grade95Price) prices.push({ sourceId, priceType: 'grade95', price: scrapedData.grade95Price })
-    if (scrapedData.grade10Price) prices.push({ sourceId, priceType: 'grade10', price: scrapedData.grade10Price })
+    if (isValidPrice(scrapedData.marketPrice)) prices.push({ sourceId, priceType: 'market', price: scrapedData.marketPrice })
+    if (isValidPrice(scrapedData.ungradedPrice)) prices.push({ sourceId, priceType: 'ungraded', price: scrapedData.ungradedPrice })
+    if (isValidPrice(scrapedData.grade7Price)) prices.push({ sourceId, priceType: 'grade7', price: scrapedData.grade7Price })
+    if (isValidPrice(scrapedData.grade8Price)) prices.push({ sourceId, priceType: 'grade8', price: scrapedData.grade8Price })
+    if (isValidPrice(scrapedData.grade9Price)) prices.push({ sourceId, priceType: 'grade9', price: scrapedData.grade9Price })
+    if (isValidPrice(scrapedData.grade95Price)) prices.push({ sourceId, priceType: 'grade95', price: scrapedData.grade95Price })
+    if (isValidPrice(scrapedData.grade10Price)) prices.push({ sourceId, priceType: 'grade10', price: scrapedData.grade10Price })
+
+    if (prices.length === 0) {
+      await prisma.cardSource.update({
+        where: { id: sourceId },
+        data: { lastCheckedAt: new Date() }
+      })
+      this.log(`No prices scraped for ${card.name}; preserved existing prices`)
+      return
+    }
 
     // Upsert each price in parallel (avoids full wipe when prices haven't changed)
     await Promise.all(prices.map(priceData =>
@@ -172,19 +185,6 @@ class SmartBatcher {
         create: priceData
       })
     ))
-
-    // Delete price types that no longer exist for this source
-    if (prices.length > 0) {
-      await prisma.cardPrice.deleteMany({
-        where: {
-          sourceId,
-          priceType: { notIn: prices.map(p => p.priceType) }
-        }
-      })
-    } else {
-      // No prices scraped — clear all (source may be unavailable)
-      await prisma.cardPrice.deleteMany({ where: { sourceId } })
-    }
 
     // Update source lastCheckedAt
     await prisma.cardSource.update({
