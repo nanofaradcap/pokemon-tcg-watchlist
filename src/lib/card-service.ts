@@ -1,11 +1,10 @@
-import { PrismaClient } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
+import { prisma } from './prisma'
 import { extractCardMatch, areCardsSame, type CardMatch } from './card-matching'
 import { scrapeWithPuppeteer } from './puppeteer-scraping'
 import { scrapePriceCharting } from './pricecharting-scraping'
 import { scrapeWithFallback } from './scraping-fallback'
 import { redis } from './redis'
-
-const prisma = new PrismaClient()
 
 export interface CardWithSources {
   id: string
@@ -309,6 +308,14 @@ export class CardService {
         sourceData.sourceType = url.includes('tcgplayer.com') ? 'tcgplayer' : 'pricecharting'
       }
 
+      // Attach the scraped set/display name (when available) so findMatchingCards
+      // can use it to avoid matching across unrelated sets that merely share a
+      // card name and numerator - see areCardsSame() in card-matching.ts.
+      const cardMatchForLookup: CardMatch = {
+        ...cardMatch,
+        setDisplay: typeof sourceData.setDisplay === 'string' ? sourceData.setDisplay : undefined
+      }
+
       // 6. Now do database operations in transaction
       const result = await prisma.$transaction(async (tx) => {
         try {
@@ -323,7 +330,7 @@ export class CardService {
           
           // 4. Find existing cards with same name and number
           console.log('🔍 Looking for existing cards...')
-          const existingCards = await this.findMatchingCards(tx, cardMatch)
+          const existingCards = await this.findMatchingCards(tx, cardMatchForLookup)
           console.log('🔍 Found existing cards:', existingCards.length)
           
           if (existingCards.length > 0) {
@@ -452,33 +459,38 @@ export class CardService {
 
     const refreshResults = await Promise.all(refreshPromises)
 
-    // Now update the database in a transaction
-    return await prisma.$transaction(async (tx) => {
-      for (const result of refreshResults) {
-        if (result.newData) {
-          await this.refreshCardSource(tx, result.source.id, result.newData)
+    // Now update the database in a transaction. Keep this transaction limited to
+    // the Prisma writes/reads it actually needs — cache invalidation (Redis) is
+    // done afterward, outside the transaction, so a slow/hung Redis call can't
+    // trip Prisma's interactive-transaction timeout and roll back price writes
+    // that already succeeded.
+    const result = await prisma.$transaction(async (tx) => {
+      for (const refreshResult of refreshResults) {
+        if (refreshResult.newData) {
+          await this.refreshCardSource(tx, refreshResult.source.id, refreshResult.newData)
         }
         // If scraping failed, we just skip updating that source
       }
-      
+
       // Return updated card
       const updatedCard = await this.getCardWithSources(tx, cardId)
-      const result = this.getCardDisplayData(updatedCard!)
-      
-      // Invalidate cache for all profiles that have this card
-      const profiles = await prisma.profile.findMany({
-        where: {
-          userCards: {
-            some: { cardId: cardId }
-          }
-        },
-        select: { name: true }
-      })
-      
-      await Promise.all(profiles.map(p => this.invalidateProfileCache(p.name)))
-      
-      return result
+      return this.getCardDisplayData(updatedCard!)
     })
+
+    // Invalidate cache for all profiles that have this card (outside the
+    // transaction, after it has committed).
+    const profiles = await prisma.profile.findMany({
+      where: {
+        userCards: {
+          some: { cardId: cardId }
+        }
+      },
+      select: { name: true }
+    })
+
+    await Promise.all(profiles.map(p => this.invalidateProfileCache(p.name)))
+
+    return result
   }
 
   async deleteCard(cardId: string, profileName: string): Promise<void> {
@@ -527,13 +539,16 @@ export class CardService {
   }
 
   private async findMatchingCards(tx: PrismaTransaction, cardMatch: CardMatch): Promise<CardWithSources[]> {
-    // Step 1: fetch only the fields needed for name/number matching
+    // Step 1: fetch only the fields needed for name/number/set matching
     const allCards = await tx.card.findMany({
-      select: { id: true, name: true, No: true }
+      select: { id: true, name: true, No: true, setDisplay: true }
     })
 
     const matchingIds = allCards
-      .filter(card => areCardsSame({ name: card.name, number: card.No || '' }, cardMatch))
+      .filter(card => areCardsSame(
+        { name: card.name, number: card.No || '', setDisplay: card.setDisplay || undefined },
+        cardMatch
+      ))
       .map(card => card.id)
 
     if (matchingIds.length === 0) return []
@@ -729,12 +744,21 @@ export class CardService {
       throw new Error('Invalid sourceData provided to updateCardSource')
     }
     
-    // Update source metadata
+    // Update source metadata.
+    // scrapeCardData() returns productId: '' when Puppeteer scraping fails (see
+    // its catch branch), so an empty/falsy productId here does not mean "this
+    // source has no product ID" - it can also mean "we failed to look it up this
+    // time". Only overwrite productId when the new data actually provides a
+    // non-empty value, so a failed scrape (possibly for an unrelated card, if
+    // findMatchingCards produced a false-positive match - see areCardsSame in
+    // card-matching.ts) never blanks out a previously-valid productId, which is
+    // used to build image/export URLs.
+    const newProductId = typeof sourceData.productId === 'string' ? sourceData.productId : ''
     await tx.cardSource.update({
       where: { id: sourceId },
       data: {
         url: typeof sourceData.url === 'string' ? sourceData.url : '',
-        productId: typeof sourceData.productId === 'string' ? sourceData.productId : '',
+        ...(newProductId ? { productId: newProductId } : {}),
         currency: typeof sourceData.currency === 'string' ? sourceData.currency : 'USD',
         lastCheckedAt: new Date()
       }

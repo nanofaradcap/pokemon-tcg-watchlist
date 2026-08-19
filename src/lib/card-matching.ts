@@ -5,6 +5,10 @@
 export interface CardMatch {
   name: string
   number: string
+  // Optional set/edition display name (e.g. "SV4a: Shiny Treasure ex (SV4a)").
+  // When present on both sides of a comparison, areCardsSame() uses it to guard
+  // against the numerator-only `number` field colliding across unrelated sets.
+  setDisplay?: string
 }
 
 /**
@@ -71,54 +75,98 @@ export function normalizeCardName(name: string): string {
 }
 
 /**
- * Check if two cards are the same based on normalized name and number
+ * Check if two cards are the same based on normalized name and number.
+ *
+ * NOTE ON REMAINING RISK: `number` is only the numerator portion of a card's
+ * set number (e.g. "025"), which is not unique across sets — many different
+ * sets contain a card numbered "025". When both cards carry `setDisplay`
+ * (populated once a source has been scraped), we additionally require the
+ * set names to overlap, which rules out most cross-set collisions. But
+ * `setDisplay` is not always available (e.g. before a URL has been scraped,
+ * or if a scrape only partially succeeds), and even when present, TCGplayer
+ * and PriceCharting format set names differently, so containment may not
+ * catch every case. In those situations this function still falls back to
+ * name+number matching alone, which can produce false-positive matches
+ * across unrelated sets that happen to share a card name and a numerator.
+ * Callers that merge data based on a match (see CardService.mergeWithExisting)
+ * should avoid letting a match blindly overwrite fields that a false positive
+ * could corrupt (e.g. productId - see updateCardSource).
  */
 export function areCardsSame(card1: CardMatch, card2: CardMatch): boolean {
   // Normalize numbers by removing leading zeros
   const normalizeNumber = (num: string) => num.replace(/^0+/, '') || '0'
   const normalizedNumber1 = normalizeNumber(card1.number)
   const normalizedNumber2 = normalizeNumber(card2.number)
-  
+
+  if (!doNamesAndNumberMatch(card1, card2, normalizedNumber1, normalizedNumber2)) {
+    return false
+  }
+
+  // Additional guard: when both sides have set/display info, require it to
+  // overlap too. See the NOTE ON REMAINING RISK above for what this does and
+  // does not protect against.
+  if (card1.setDisplay && card2.setDisplay) {
+    const set1 = normalizeCardName(card1.setDisplay)
+    const set2 = normalizeCardName(card2.setDisplay)
+    if (set1 !== set2 && !set1.includes(set2) && !set2.includes(set1)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
+ * Name+number matching logic extracted from areCardsSame(). See the
+ * "NOTE ON REMAINING RISK" comment on areCardsSame for the known limitation
+ * of matching on name + numerator alone.
+ */
+function doNamesAndNumberMatch(
+  card1: CardMatch,
+  card2: CardMatch,
+  normalizedNumber1: string,
+  normalizedNumber2: string
+): boolean {
   // Exact match first
-  if (normalizeCardName(card1.name) === normalizeCardName(card2.name) && 
+  if (normalizeCardName(card1.name) === normalizeCardName(card2.name) &&
       normalizedNumber1 === normalizedNumber2) {
     return true
   }
-  
+
   // Fuzzy matching for similar card names
   const name1 = normalizeCardName(card1.name)
   const name2 = normalizeCardName(card2.name)
-  
+
   // Extract the core card name (remove set names, etc.)
   const coreName1 = extractCoreCardName(name1)
   const coreName2 = extractCoreCardName(name2)
-  
+
   // Check if core names match and numbers are the same
   if (coreName1 === coreName2 && normalizedNumber1 === normalizedNumber2) {
     return true
   }
-  
+
   // Check if one name contains the other and numbers match
   if ((name1.includes(coreName2) || name2.includes(coreName1)) && normalizedNumber1 === normalizedNumber2) {
     return true
   }
-  
+
   // Check if the core names are similar (one contains the other) and numbers match
   if ((coreName1.includes(coreName2) || coreName2.includes(coreName1)) && normalizedNumber1 === normalizedNumber2) {
     return true
   }
-  
+
   // Check if one name contains the other (without core extraction) and numbers match
   if ((name1.includes(name2) || name2.includes(name1)) && normalizedNumber1 === normalizedNumber2) {
     return true
   }
-  
+
   // Check if the core names match when removing numbers from the second name
   const coreName2WithoutNumber = coreName2.replace(/\s*\d+\s*/, ' ').trim()
   if ((coreName1.includes(coreName2WithoutNumber) || coreName2WithoutNumber.includes(coreName1)) && normalizedNumber1 === normalizedNumber2) {
     return true
   }
-  
+
   return false
 }
 

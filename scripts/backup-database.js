@@ -44,12 +44,11 @@
 
     console.log('🗄️  Fetching data from database…')
 
-    const [profiles, cards, cardSources, cardPrices, priceHistories, userCards] = await Promise.all([
+    const [profiles, cards, cardSources, cardPrices, userCards] = await Promise.all([
       prisma.profile.findMany({ orderBy: { createdAt: 'asc' } }),
       prisma.card.findMany({ orderBy: { createdAt: 'asc' } }),
       prisma.cardSource.findMany({ orderBy: { createdAt: 'asc' } }),
       prisma.cardPrice.findMany({ orderBy: { createdAt: 'asc' } }),
-      prisma.priceHistory.findMany({ orderBy: { changedAt: 'asc' } }),
       prisma.userCard.findMany({ orderBy: { createdAt: 'asc' } }),
     ])
 
@@ -75,12 +74,6 @@
         createdAt: toISOString(price.createdAt),
         updatedAt: toISOString(price.updatedAt),
       })),
-      priceHistories: priceHistories.map((history) => ({
-        ...history,
-        oldPrice: serializeDecimal(history.oldPrice),
-        newPrice: serializeDecimal(history.newPrice),
-        changedAt: toISOString(history.changedAt),
-      })),
       userCards: userCards.map((userCard) => ({
         ...userCard,
         createdAt: toISOString(userCard.createdAt),
@@ -97,7 +90,6 @@
     console.log('   Cards:', payload.cards.length)
     console.log('   CardSources:', payload.cardSources.length)
     console.log('   CardPrices:', payload.cardPrices.length)
-    console.log('   PriceHistories:', payload.priceHistories.length)
     console.log('   UserCards:', payload.userCards.length)
   } catch (error) {
     console.error('❌ Backup failed:', error)

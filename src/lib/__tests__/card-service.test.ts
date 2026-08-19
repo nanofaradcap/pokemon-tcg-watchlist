@@ -1,6 +1,26 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals'
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from '@jest/globals'
 import { PrismaClient } from '@prisma/client'
 import { cardService } from '../card-service'
+
+// Data Safety Guard: Ensure tests only run against a dedicated test database
+// This prevents accidental deletion of production data if DATABASE_URL is misconfigured
+beforeAll(() => {
+  const dbUrl = process.env.DATABASE_URL || ''
+  const isTestDatabase = /test/i.test(dbUrl) || /localhost/i.test(dbUrl)
+
+  if (!isTestDatabase) {
+    throw new Error(
+      `SAFETY ERROR: deleteMany() tests can only run against a test database.\n\n` +
+      `Current DATABASE_URL does not appear to be a test database.\n` +
+      `Detected: ${dbUrl ? dbUrl.substring(0, 50) + '...' : '(not set)'}\n\n` +
+      `Fix: Configure DATABASE_URL to contain "test" (e.g., "test_db") or "localhost",\n` +
+      `or set up a separate TEST_DATABASE_URL environment variable.\n\n` +
+      `Example safe values:\n` +
+      `  DATABASE_URL="postgresql://user:pass@localhost:5432/pokemon_test"\n` +
+      `  DATABASE_URL="postgresql://user:pass@neon.tech/pokemon_test_db?sslmode=require"`
+    )
+  }
+})
 
 // Mock the scraping functions
 jest.mock('../puppeteer-scraping', () => ({

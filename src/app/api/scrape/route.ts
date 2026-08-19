@@ -5,10 +5,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { scrapeWithPuppeteer } from '@/lib/puppeteer-scraping'
 import redis from '@/lib/redis'
+import { checkApiSecret } from '@/lib/api-auth'
 
 const BodySchema = z.object({
   url: z.string().url(),
 })
+
+const TCGPLAYER_HOSTS = new Set(['tcgplayer.com', 'www.tcgplayer.com'])
+
+function isAllowedTcgplayerUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl)
+    const isAllowedHost = TCGPLAYER_HOSTS.has(parsed.hostname.toLowerCase())
+    const isAllowedPath = /\/product\/(\d+)\//.test(parsed.pathname)
+    return parsed.protocol === 'https:' && isAllowedHost && isAllowedPath
+  } catch {
+    return false
+  }
+}
 
 async function checkRateLimit(ip: string): Promise<boolean> {
   if (!redis || !redis.isOpen) return true
@@ -21,6 +35,9 @@ async function checkRateLimit(ip: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = checkApiSecret(req)
+  if (authError) return authError
+
   try {
     // Rate limiting
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
@@ -36,8 +53,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { url } = BodySchema.parse(body)
 
-    // Validate TCGplayer URL
-    if (!url.includes('tcgplayer.com/product/')) {
+    // Validate TCGplayer URL (protocol + exact hostname + path, not a substring match)
+    if (!isAllowedTcgplayerUrl(url)) {
       return NextResponse.json(
         { error: 'Invalid TCGplayer URL format' },
         { status: 400 }
@@ -45,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract productId from URL
-    const productIdMatch = url.match(/\/product\/(\d+)\//)
+    const productIdMatch = new URL(url).pathname.match(/\/product\/(\d+)\//)
     if (!productIdMatch) {
       return NextResponse.json(
         { error: 'Invalid TCGplayer URL format' },

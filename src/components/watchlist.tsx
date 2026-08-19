@@ -38,6 +38,18 @@ interface CardRow {
   mergedSources?: string[]
 }
 
+// Shared secret echoed back on mutating requests so the API's checkApiSecret()
+// (src/lib/api-auth.ts) has something to check against.
+//
+// NOTE: this is a NEXT_PUBLIC_ var, so it ships in the browser JS bundle — anyone
+// can read it out of devtools. It is NOT a real security boundary against a
+// determined attacker; it only stops trivial/naive scripted abuse of these
+// endpoints. TODO: replace with real session/cookie-based auth (e.g. a login)
+// for genuine protection of the mutating card endpoints.
+const API_SECRET_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_API_SECRET
+  ? { 'x-api-secret': process.env.NEXT_PUBLIC_API_SECRET }
+  : {}
+
 const TCGPLAYER_PRODUCT_ID_REGEX = /\/product\/(\d+)(?:\/|$|\?)/
 
 const extractProductIdFromUrl = (url?: string): string | undefined => {
@@ -160,10 +172,14 @@ function CardImage({ card, priority = false }: { card: CardRow; priority?: boole
     setIsResolving(false)
   }, [card.id, card.imageUrl, card.productId, card.url, mergedUrlsKey])
 
-  // Proactively resolve current PriceCharting image URL.
-  // This avoids relying only on <img onError>, which can be delayed/sticky for some stale URLs.
+  // Proactively resolve the current PriceCharting image URL, but only when the card has
+  // no existing/cached image to try first. If an image URL is already on the card, rely on
+  // the <img onError> handler below to trigger recovery — fetching here unconditionally on
+  // every render/mount was hammering /api/images/pricecharting (one request per PriceCharting
+  // card per page load), tripping its 30/min per-IP rate limit and poisoning the resolver
+  // cache with permanent `null` entries for the rest of the session.
   useEffect(() => {
-    if (!priceChartingSourceUrl) return
+    if (!priceChartingSourceUrl || card.imageUrl) return
 
     let cancelled = false
     setIsResolving(true)
@@ -187,7 +203,7 @@ function CardImage({ card, priority = false }: { card: CardRow; priority?: boole
     return () => {
       cancelled = true
     }
-  }, [priceChartingSourceUrl])
+  }, [priceChartingSourceUrl, card.imageUrl])
 
   useEffect(() => {
     if (!allCandidatesFailed || hasTriedResolve || !priceChartingSourceUrl) return
@@ -328,7 +344,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     mutationFn: async (url: string) => {
       const response = await fetch('/api/cards', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...API_SECRET_HEADERS },
         body: JSON.stringify({ url, profile }),
       })
       if (!response.ok) {
@@ -356,6 +372,7 @@ function WatchlistContent({ profiles = defaultProfiles }: { profiles?: readonly 
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/cards?id=${id}&profile=${profile}`, {
         method: 'DELETE',
+        headers: { ...API_SECRET_HEADERS },
       })
       if (!response.ok) {
         const error = await response.json()

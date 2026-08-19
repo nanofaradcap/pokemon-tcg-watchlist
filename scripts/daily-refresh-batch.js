@@ -35,6 +35,11 @@ class SmartBatcher {
     this.batchSize = parseInt(process.env.BATCH_SIZE || '10')
     this.delayMinutes = parseInt(process.env.DELAY_MINUTES || '2')
     this.delayMs = this.delayMinutes * 60 * 1000
+    // Pacing applied between individual source refreshes for the same card
+    // (e.g. a TCGplayer source and a PriceCharting source merged onto one
+    // card), so a multi-source card doesn't fire back-to-back requests at
+    // either site with no gap.
+    this.sourceDelayMs = parseInt(process.env.SOURCE_DELAY_MS || '3000')
     this.maxCards = parseOptionalPositiveInt(process.env.MAX_CARDS)
     this.dryRun = parseBoolean(process.env.DRY_RUN)
     this.logDir = path.join(process.cwd(), 'logs')
@@ -125,37 +130,75 @@ class SmartBatcher {
   }
 
   async processCard(card) {
-    try {
-      // Get the first source URL for refreshing
-      const source = card.sources[0]
-      if (!source) {
-        throw new Error('No sources found for card')
-      }
-
-      this.log(`Refreshing card: ${card.name} (${source.url})`)
-
-      // Scrape the card data
-      let scrapedData
-      if (source.url.includes('tcgplayer.com')) {
-        scrapedData = await scrapeWithPuppeteer(source.url, source.productId || '')
-      } else if (source.url.includes('pricecharting.com')) {
-        scrapedData = await scrapePriceCharting(source.url)
-      } else {
-        scrapedData = await scrapeWithFallback(source.url)
-      }
-
-      if (this.dryRun) {
-        this.log(`DRY_RUN enabled; skipped database update for ${card.name}`)
-      } else {
-        // Update the card with new pricing data
-        await this.updateCardPricing(card, scrapedData, source.id)
-      }
-
-      return { success: true, cardId: card.id, cardName: card.name }
-    } catch (error) {
+    const sources = card.sources || []
+    if (sources.length === 0) {
+      const error = new Error('No sources found for card')
       this.log(`Error processing card ${card.name}: ${error.message}`, 'ERROR')
       throw error
     }
+
+    // Refresh every source attached to the card, not just the first one.
+    // A card can have multiple sources (e.g. a TCGplayer source and a
+    // PriceCharting source merged onto it by the fuzzy-matching logic in
+    // card-service.ts), and each one needs its own scrape + lastCheckedAt
+    // update or its prices silently go stale while the UI's freshness
+    // label ("updated Xm ago") keeps reporting whichever source WAS
+    // refreshed.
+    //
+    // Sources are refreshed sequentially (with a delay between them,
+    // sourceDelayMs) rather than in parallel, so a multi-source card
+    // doesn't multiply the number of simultaneous requests hitting
+    // TCGplayer/PriceCharting within a batch - this preserves the same
+    // per-request pacing the batch-level delay was designed around.
+    const sourceErrors = []
+    let refreshedCount = 0
+
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i]
+      try {
+        await this.refreshSource(card, source)
+        refreshedCount++
+      } catch (error) {
+        this.log(`Error refreshing source ${source.id} (${source.url}) for card ${card.name}: ${error.message}`, 'ERROR')
+        sourceErrors.push(`${source.url}: ${error.message}`)
+      }
+
+      if (i < sources.length - 1) {
+        await this.delay(this.sourceDelayMs)
+      }
+    }
+
+    if (refreshedCount === 0) {
+      throw new Error(sourceErrors.join('; ') || 'Failed to refresh any source for card')
+    }
+
+    if (sourceErrors.length > 0) {
+      this.log(`Card ${card.name} refreshed with partial errors (${refreshedCount}/${sources.length} sources succeeded): ${sourceErrors.join('; ')}`, 'WARN')
+    }
+
+    return { success: true, cardId: card.id, cardName: card.name, sourcesRefreshed: refreshedCount, sourcesTotal: sources.length }
+  }
+
+  async refreshSource(card, source) {
+    this.log(`Refreshing card: ${card.name} source ${source.id} (${source.url})`)
+
+    // Scrape the card data
+    let scrapedData
+    if (source.url.includes('tcgplayer.com')) {
+      scrapedData = await scrapeWithPuppeteer(source.url, source.productId || '')
+    } else if (source.url.includes('pricecharting.com')) {
+      scrapedData = await scrapePriceCharting(source.url)
+    } else {
+      scrapedData = await scrapeWithFallback(source.url)
+    }
+
+    if (this.dryRun) {
+      this.log(`DRY_RUN enabled; skipped database update for ${card.name} (${source.url})`)
+      return
+    }
+
+    // Update the card with new pricing data
+    await this.updateCardPricing(card, scrapedData, source.id)
   }
 
   async updateCardPricing(card, scrapedData, sourceId) {
@@ -202,7 +245,7 @@ class SmartBatcher {
   async processAllCards() {
     const startTime = Date.now()
     this.log('🚀 Starting card refresh with smart batching')
-    this.log(`Configuration: batchSize=${this.batchSize}, delay=${this.delayMinutes}min, dryRun=${this.dryRun}, maxCards=${this.maxCards || 'all'}`)
+    this.log(`Configuration: batchSize=${this.batchSize}, delay=${this.delayMinutes}min, sourceDelayMs=${this.sourceDelayMs}, dryRun=${this.dryRun}, maxCards=${this.maxCards || 'all'}`)
 
     try {
       const cards = await this.getAllCards()

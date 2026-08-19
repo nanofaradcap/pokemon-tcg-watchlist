@@ -630,12 +630,12 @@ export async function scrapeWithPuppeteer(url: string, productId: string): Promi
 
     // Normalize price
     const networkMarketPrice = chooseBestPriceCandidate(networkPriceCandidates)
-    const marketPrice = data.spotlightPrice ??
-      data.jsonLdOfferPrice ??
-      data.recentSalePrice ??
-      data.marketPrice ??
+    const marketPrice = data.marketPrice ??
+      parsePriceValue(data.marketPriceText, true) ??
       networkMarketPrice?.price ??
-      parsePriceValue(data.marketPriceText, true)
+      data.spotlightPrice ??
+      data.jsonLdOfferPrice ??
+      data.recentSalePrice
 
     const canonicalImageUrl = `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_in_1000x1000.jpg`
 
