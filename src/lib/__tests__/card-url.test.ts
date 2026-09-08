@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { cardUrlSchema, parseCardUrl } from '../card-url'
+import { parseCardUrl } from '../card-url'
+import { cardUrlSchema } from '../card-validation'
 import { scrapeWithPuppeteer } from '../puppeteer-scraping'
 import { scrapePriceCharting } from '../pricecharting-scraping'
 
@@ -40,6 +41,13 @@ describe('card URLs', () => {
       productId: '',
     })
     assert.equal(cardUrlSchema.safeParse(`https://tcgplayer.com/product/123/${'a'.repeat(2048)}`).success, false)
+  })
+
+  it('repairs the verified moved Chinese Pikachu listing without changing other variants', () => {
+    assert.equal(parseCardUrl('https://www.pricecharting.com/game/pokemon-chinese-scarlet-&-violet-151/pikachu-171').url,
+      'https://www.pricecharting.com/game/pokemon-chinese-151-collect/pikachu-171')
+    const otherVariant = 'https://www.pricecharting.com/game/pokemon-chinese-scarlet-&-violet-151/pikachu-172'
+    assert.equal(parseCardUrl(otherVariant).url, otherVariant)
   })
 
   it('rejects invalid persisted sources before launching a scraper', async () => {

@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cardService } from '@/lib/card-service'
 import { checkApiSecret } from '@/lib/api-auth'
-import { cardUrlSchema } from '@/lib/card-url'
+import { cardUrlSchema } from '@/lib/card-validation'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor'] as const
 type Profile = typeof Profiles[number]

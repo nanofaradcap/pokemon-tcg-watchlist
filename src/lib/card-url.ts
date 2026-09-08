@@ -1,6 +1,11 @@
-import { z } from 'zod'
-
 export type CardSourceType = 'tcgplayer' | 'pricecharting'
+
+// PriceCharting renamed this listing; the old URL redirects to ambiguous search
+// results. Keep the verified replacement exact so other languages/variants are untouched.
+const PRICECHARTING_PATH_ALIASES: Record<string, string> = {
+  '/game/pokemon-chinese-scarlet-&-violet-151/pikachu-171':
+    '/game/pokemon-chinese-151-collect/pikachu-171',
+}
 
 export function parseCardUrl(rawUrl: string): {
   url: string
@@ -25,18 +30,12 @@ export function parseCardUrl(rawUrl: string): {
   parsed.search = ''
   parsed.hash = ''
   parsed.pathname = parsed.pathname.replace(/\/$/, '')
+  if (isPriceCharting) {
+    parsed.pathname = PRICECHARTING_PATH_ALIASES[parsed.pathname] ?? parsed.pathname
+  }
   return {
     url: parsed.toString(),
     sourceType: isTcgplayer ? 'tcgplayer' : 'pricecharting',
     productId: isTcgplayer ? tcgMatch![1] : '',
   }
 }
-
-export const cardUrlSchema = z.string().trim().max(2048).refine((url) => {
-  try {
-    parseCardUrl(url)
-    return true
-  } catch {
-    return false
-  }
-}, 'Use an HTTPS TCGplayer product or PriceCharting card URL')

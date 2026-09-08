@@ -14,6 +14,8 @@ const { scrapeWithPuppeteer } = require('../dist/lib/puppeteer-scraping')
 const { scrapePriceCharting } = require('../dist/lib/pricecharting-scraping')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { scrapeWithFallback } = require('../dist/lib/scraping-fallback')
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { refreshedCardImage } = require('../dist/lib/card-images')
 
 const prisma = new PrismaClient()
 
@@ -69,6 +71,7 @@ class SmartBatcher {
       select: {
         id: true,
         name: true,
+        imageUrl: true,
         sources: {
           select: {
             id: true,
@@ -202,6 +205,12 @@ class SmartBatcher {
   }
 
   async updateCardPricing(card, scrapedData, sourceId) {
+    const imageUrl = refreshedCardImage(card.imageUrl, scrapedData.imageUrl)
+    if (imageUrl) {
+      await prisma.card.update({ where: { id: card.id }, data: { imageUrl } })
+      card.imageUrl = imageUrl
+    }
+
     const prices = []
     if (isValidPrice(scrapedData.marketPrice)) prices.push({ sourceId, priceType: 'market', price: scrapedData.marketPrice })
     if (isValidPrice(scrapedData.ungradedPrice)) prices.push({ sourceId, priceType: 'ungraded', price: scrapedData.ungradedPrice })

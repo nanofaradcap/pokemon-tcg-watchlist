@@ -12,7 +12,7 @@ const now = new Date('2026-01-01T00:00:00Z')
 function makeCard(): CardWithSources {
   return {
     id: 'card-1', name: 'Pikachu', No: '58', setDisplay: 'Base Set', rarity: null,
-    imageUrl: null, createdAt: now, updatedAt: now,
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/123_in_1000x1000.jpg', createdAt: now, updatedAt: now,
     sources: [{
       id: 'source-1', cardId: 'card-1', sourceType: 'tcgplayer',
       url: 'https://www.tcgplayer.com/product/123/pikachu-58', productId: '123',
@@ -111,6 +111,33 @@ describe('CardService', () => {
     assert.equal((await new CardService().refreshCard(card.id)).marketPrice, 10)
     assert.deepEqual(invalidated.sort(), ['cards:Chen', 'cards:Tiff'])
   })
+
+
+  for (const current of [null, 'https://storage.googleapis.com/images.pricecharting.com/expired/1600.jpg', 'https://tcgplayer-cdn.tcgplayer.com/product/123_in_1000x1000.jpg']) {
+    it(`refreshes rotated images without disturbing preferred images (${current ?? 'missing'})`, async () => {
+      const card = makeCard()
+      card.imageUrl = current
+      card.sources[0].sourceType = 'pricecharting'
+      card.sources[0].url = 'https://www.pricecharting.com/game/pokemon-base-set/pikachu-58'
+      const imageUrl = 'https://storage.googleapis.com/images.pricecharting.com/current/1600.jpg'
+      mockTransaction()
+      mock.method(prisma.card, 'findUnique', async () => card as never)
+      mock.method(prisma.profile, 'findMany', async () => [])
+      mock.method(prisma.cardSource, 'update', async () => card.sources[0] as never)
+      mock.method(pcScraper, 'scrapePriceCharting', async () => ({ name: card.name, url: card.sources[0].url, imageUrl }))
+      const writes: unknown[] = []
+      mock.method(prisma.card, 'update', async (args: Prisma.CardUpdateArgs) => {
+        writes.push(args)
+        card.imageUrl = String(args.data.imageUrl)
+        return card as never
+      })
+      const result = await new CardService().refreshCard(card.id)
+      const keepTcgplayer = current?.includes('tcgplayer.com')
+      assert.equal(result.imageUrl, keepTcgplayer ? current : imageUrl)
+      assert.equal(writes.length, keepTcgplayer ? 0 : 1)
+      assert.equal(result.marketPrice, 10, 'Image-only scrapes preserve known prices')
+    })
+  }
 
   it('retains the product ID and image URL when adding through the scraper fallback', async () => {
     const card = makeCard()

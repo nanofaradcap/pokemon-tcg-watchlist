@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid source URL' }, { status: 400 })
     }
 
-    const response = await fetch(sourceUrl, {
+    const response = await fetch(parseCardUrl(sourceUrl).url, {
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(10000),

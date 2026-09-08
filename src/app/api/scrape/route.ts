@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { scrapeWithPuppeteer } from '@/lib/puppeteer-scraping'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { cardUrlSchema, parseCardUrl } from '@/lib/card-url'
+import { parseCardUrl } from '@/lib/card-url'
+import { cardUrlSchema } from '@/lib/card-validation'
 import { checkApiSecret } from '@/lib/api-auth'
 
 const BodySchema = z.object({

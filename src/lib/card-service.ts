@@ -6,6 +6,7 @@ import { scrapePriceCharting } from './pricecharting-scraping'
 import { scrapeWithFallback } from './scraping-fallback'
 import { withRedis } from './redis'
 import { parseCardUrl } from './card-url'
+import { refreshedCardImage } from './card-images'
 
 export interface CardWithSources {
   id: string
@@ -432,6 +433,10 @@ export class CardService {
       for (const refreshResult of refreshResults) {
         if (refreshResult.newData) {
           await this.refreshCardSource(tx, refreshResult.source.id, refreshResult.newData)
+          const imageUrl = refreshedCardImage(card.imageUrl, refreshResult.newData.imageUrl)
+          if (imageUrl) {
+            await tx.card.update({ where: { id: cardId }, data: { imageUrl } })
+          }
         }
         // If scraping failed, we just skip updating that source
       }
@@ -838,6 +843,14 @@ export class CardService {
   }
 
   private getCardDisplayData(card: CardWithSources): CardDisplayData {
+    // Apply verified source moves to links as well as scraper requests.
+    card = { ...card, sources: card.sources.map((source) => {
+      try {
+        return { ...source, url: parseCardUrl(source.url).url }
+      } catch {
+        return source
+      }
+    }) }
     const consolidatedPricing = this.consolidatePricing(card.sources)
     
     // For merged cards, prefer PriceCharting for better metadata (setDisplay, No, rarity, imageUrl)
