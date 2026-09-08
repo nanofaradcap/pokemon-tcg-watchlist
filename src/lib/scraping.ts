@@ -1,3 +1,4 @@
+import { parseCardUrl } from './card-url'
 import { chromium } from '@playwright/test'
 
 export interface ScrapedData {
@@ -12,6 +13,11 @@ export interface ScrapedData {
 }
 
 export async function scrapeWithPlaywright(url: string, productId: string): Promise<ScrapedData> {
+  const source = parseCardUrl(url)
+  if (source.sourceType !== 'tcgplayer') throw new Error('Invalid tcgplayer URL')
+  url = source.url
+  productId = source.productId
+
   // Set a timeout for the entire Playwright operation
   const timeout = 25000 // 25 seconds (leaving 5s buffer for Vercel's 30s limit)
   

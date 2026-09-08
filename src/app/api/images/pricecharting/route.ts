@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import redis from '@/lib/redis'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { parseCardUrl } from '@/lib/card-url'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -7,11 +8,7 @@ export const revalidate = 0
 
 function isAllowedPriceChartingUrl(rawUrl: string): boolean {
   try {
-    const parsed = new URL(rawUrl)
-    const isAllowedHost =
-      parsed.hostname === 'www.pricecharting.com' || parsed.hostname === 'pricecharting.com'
-    const isAllowedPath = parsed.pathname.startsWith('/game/')
-    return parsed.protocol === 'https:' && isAllowedHost && isAllowedPath
+    return parseCardUrl(rawUrl).sourceType === 'pricecharting'
   } catch {
     return false
   }
@@ -35,22 +32,12 @@ function extractPriceChartingImageUrl(html: string): string | null {
   return null
 }
 
-async function checkRateLimit(ip: string): Promise<boolean> {
-  if (!redis || !redis.isOpen) return true
-  const windowSecs = 60
-  const limit = 30
-  const key = `ratelimit:pricecharting:${ip}:${Math.floor(Date.now() / (windowSecs * 1000))}`
-  const count = await redis.incr(key)
-  if (count === 1) await redis.expire(key, windowSecs)
-  return count <= limit
-}
-
 export async function GET(req: NextRequest) {
   try {
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
       || req.headers.get('x-real-ip')
       || 'unknown'
-    if (!(await checkRateLimit(ip))) {
+    if (!(await checkRateLimit('pricecharting', ip, 30))) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please try again later.' },
         { status: 429 },
@@ -64,6 +51,8 @@ export async function GET(req: NextRequest) {
 
     const response = await fetch(sourceUrl, {
       cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

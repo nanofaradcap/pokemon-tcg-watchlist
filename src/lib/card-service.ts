@@ -4,7 +4,8 @@ import { extractCardMatch, areCardsSame, type CardMatch } from './card-matching'
 import { scrapeWithPuppeteer } from './puppeteer-scraping'
 import { scrapePriceCharting } from './pricecharting-scraping'
 import { scrapeWithFallback } from './scraping-fallback'
-import { redis } from './redis'
+import { withRedis } from './redis'
+import { parseCardUrl } from './card-url'
 
 export interface CardWithSources {
   id: string
@@ -85,54 +86,30 @@ export interface CardDisplayData {
 type PrismaTransaction = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]
 
 export class CardService {
-  private cache = new Map<string, { data: CardWithSources; timestamp: number }>()
-  private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly REDIS_TTL = 2 * 60 // 2 minutes in seconds
 
   private async getCachedCards(profileName: string): Promise<CardDisplayData[] | null> {
-    if (!redis) return null
-    
-    try {
-      const cacheKey = `cards:${profileName}`
-      // Add timeout to prevent hanging
-      const cached = await Promise.race([
-        redis.get(cacheKey),
-        new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 1000))
-      ])
+    return withRedis(async (client) => {
+      const cached = await client.get(`cards:${profileName}`)
       return cached ? JSON.parse(cached) : null
-    } catch (error) {
-      console.warn('Redis cache miss or error:', error)
-      return null
-    }
+    }, null)
   }
 
   private async setCachedCards(profileName: string, cards: CardDisplayData[]): Promise<void> {
-    if (!redis) return
-    
-    try {
-      const cacheKey = `cards:${profileName}`
-      // Add timeout to prevent hanging
-      await Promise.race([
-        redis.setEx(cacheKey, this.REDIS_TTL, JSON.stringify(cards)),
-        new Promise<void>((resolve) => setTimeout(() => resolve(), 1000))
-      ])
-    } catch (error) {
-      console.warn('Failed to cache cards:', error)
-    }
+    await withRedis(async (client) => {
+      await client.setEx(`cards:${profileName}`, this.REDIS_TTL, JSON.stringify(cards))
+    }, undefined)
   }
 
   private async invalidateProfileCache(profileName: string): Promise<void> {
-    if (!redis) return
-    
-    try {
-      const cacheKey = `cards:${profileName}`
-      await redis.del(cacheKey)
-    } catch (error) {
-      console.warn('Failed to invalidate cache:', error)
-    }
+    await withRedis(async (client) => {
+      await client.del(`cards:${profileName}`)
+    }, undefined)
   }
 
   async addCard(url: string, profileName: string): Promise<CardDisplayData> {
+    const source = parseCardUrl(url)
+    url = source.url
     console.log('🔍 CardService.addCard called with:', { url, profileName })
     
     try {
@@ -141,7 +118,7 @@ export class CardService {
       let cardName = ''
       let cardNumber = ''
       
-      if (url.includes('tcgplayer.com')) {
+      if (source.sourceType === 'tcgplayer') {
         // Remove query parameters before parsing
         const cleanUrl = url.split('?')[0]
         // More flexible regex to handle different TCGplayer URL formats
@@ -202,7 +179,7 @@ export class CardService {
             }
           }
         }
-      } else if (url.includes('pricecharting.com')) {
+      } else if (source.sourceType === 'pricecharting') {
         // Remove query parameters before parsing
         const cleanUrl = url.split('?')[0]
         
@@ -236,23 +213,26 @@ export class CardService {
       // 2. Scrape card data OUTSIDE transaction
       console.log('🔍 Scraping card data...')
       let sourceData: Record<string, unknown> | null = null
+      let scrapeTimer: ReturnType<typeof setTimeout> | undefined
       try {
         // Add timeout wrapper to prevent hanging
         const scrapePromise = this.scrapeCardData(url) as Promise<Record<string, unknown>>
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Scraping timed out after 20 seconds')), 20000)
-        )
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          scrapeTimer = setTimeout(() => reject(new Error('Scraping timed out after 20 seconds')), 20000)
+        })
         sourceData = await Promise.race([scrapePromise, timeoutPromise])
         console.log('🔍 Scraped data:', sourceData)
       } catch (scrapeError) {
         console.warn('⚠️ Scraping failed, will use URL-extracted data:', scrapeError instanceof Error ? scrapeError.message : 'Unknown error')
         // Create minimal sourceData so we can continue with URL-extracted data
         sourceData = {
-          sourceType: url.includes('tcgplayer.com') ? 'tcgplayer' : 'pricecharting',
-          url: url.split('?')[0],
-          productId: '',
+          sourceType: source.sourceType,
+          url,
+          productId: source.productId,
           currency: 'USD'
         }
+      } finally {
+        clearTimeout(scrapeTimer)
       }
       
       // 3. Use scraped card name if available, otherwise use URL-extracted name
@@ -305,7 +285,7 @@ export class CardService {
       
       // Ensure sourceType is set (should always be set from scrapeCardData or fallback)
       if (!sourceData.sourceType) {
-        sourceData.sourceType = url.includes('tcgplayer.com') ? 'tcgplayer' : 'pricecharting'
+        sourceData.sourceType = source.sourceType
       }
 
       // Attach the scraped set/display name (when available) so findMatchingCards
@@ -362,28 +342,12 @@ export class CardService {
   }
 
   async getCardsForProfile(profileName: string): Promise<CardDisplayData[]> {
-    // Try cache first (with timeout to prevent hanging)
-    let cached: CardDisplayData[] | null = null
-    try {
-      cached = await Promise.race([
-        this.getCachedCards(profileName),
-        new Promise<CardDisplayData[] | null>((resolve) => setTimeout(() => resolve(null), 500))
-      ])
-      if (cached) {
-        console.log(`📦 Cache hit for profile: ${profileName}`)
-        return cached
-      }
-    } catch (error) {
-      console.warn('Cache check failed, continuing with DB fetch:', error)
-    }
+    const cached = await this.getCachedCards(profileName)
+    if (cached) return cached
 
-    console.log(`🔍 Cache miss, fetching from database for profile: ${profileName}`)
-
-    // Ensure profile exists
-    let profile = await prisma.profile.findUnique({ where: { name: profileName } })
-    if (!profile) {
-      profile = await prisma.profile.create({ data: { name: profileName } })
-    }
+    // Reading an empty watchlist must not create profiles or race concurrent reads.
+    const profile = await prisma.profile.findUnique({ where: { name: profileName } })
+    if (!profile) return []
 
     // Optimized query: Get user cards with basic card info first
     const userCards = await prisma.userCard.findMany({
@@ -838,89 +802,39 @@ export class CardService {
   }
 
   private async scrapeCardData(url: string): Promise<Record<string, unknown>> {
-    // Validate URL
-    if (!url || typeof url !== 'string') {
-      throw new Error('Invalid URL provided to scrapeCardData')
-    }
-    
-    if (url.includes('tcgplayer.com')) {
-      // Strip query parameters for consistent storage
-      const cleanUrl = url.split('?')[0]
-      
+    const source = parseCardUrl(url)
+    if (source.sourceType === 'tcgplayer') {
       try {
-        const productIdMatch = url.match(/\/product\/(\d+)(?:\/|$|\?)/)
-        if (!productIdMatch) {
-          throw new Error('Invalid TCGplayer URL format')
-        }
-        
-        const scrapedData = await scrapeWithPuppeteer(url, productIdMatch[1])
-        return {
-          ...scrapedData,
-          sourceType: 'tcgplayer',
-          productId: productIdMatch[1],
-          currency: 'USD',
-          url: cleanUrl
-        }
+        const scrapedData = await scrapeWithPuppeteer(source.url, source.productId)
+        return { ...scrapedData, ...source, currency: 'USD' }
       } catch (error) {
         console.warn('Puppeteer scraping failed, using fallback:', error)
-        const fallbackData = await scrapeWithFallback(url, '')
-        return {
-          ...fallbackData,
-          sourceType: 'tcgplayer',
-          productId: '',
-          currency: 'USD',
-          url: cleanUrl
-        }
+        const fallbackData = await scrapeWithFallback(source.url, source.productId)
+        return { ...fallbackData, ...source, currency: 'USD' }
       }
-    } else if (url.includes('pricecharting.com')) {
-      // Strip query parameters for consistent storage
-      const cleanUrl = url.split('?')[0]
-      
-      const scrapedData = await scrapePriceCharting(url)
-      return {
-        ...scrapedData,
-        sourceType: 'pricecharting',
-        productId: '',
-        currency: 'USD',
-        url: cleanUrl
-      }
-    } else {
-      throw new Error('Unsupported URL format')
     }
+
+    const scrapedData = await scrapePriceCharting(source.url)
+    return { ...scrapedData, ...source, currency: 'USD' }
   }
 
   private extractPrices(sourceData: Record<string, unknown>): Array<{ priceType: string; price: number }> {
-    // Validate sourceData
-    if (!sourceData || typeof sourceData !== 'object') {
-      console.warn('Invalid sourceData provided to extractPrices:', sourceData)
-      return []
+    const fields = {
+      marketPrice: 'market',
+      ungradedPrice: 'ungraded',
+      grade7Price: 'grade7',
+      grade8Price: 'grade8',
+      grade9Price: 'grade9',
+      grade95Price: 'grade95',
+      grade10Price: 'grade10',
     }
-    
-    const prices: Array<{ priceType: string; price: number }> = []
-    
-    if (typeof sourceData.marketPrice === 'number') {
-      prices.push({ priceType: 'market', price: sourceData.marketPrice })
-    }
-    if (typeof sourceData.ungradedPrice === 'number') {
-      prices.push({ priceType: 'ungraded', price: sourceData.ungradedPrice })
-    }
-    if (typeof sourceData.grade7Price === 'number') {
-      prices.push({ priceType: 'grade7', price: sourceData.grade7Price })
-    }
-    if (typeof sourceData.grade8Price === 'number') {
-      prices.push({ priceType: 'grade8', price: sourceData.grade8Price })
-    }
-    if (typeof sourceData.grade9Price === 'number') {
-      prices.push({ priceType: 'grade9', price: sourceData.grade9Price })
-    }
-    if (typeof sourceData.grade95Price === 'number') {
-      prices.push({ priceType: 'grade95', price: sourceData.grade95Price })
-    }
-    if (typeof sourceData.grade10Price === 'number') {
-      prices.push({ priceType: 'grade10', price: sourceData.grade10Price })
-    }
-    
-    return prices
+    return Object.entries(fields).flatMap(([field, priceType]) => {
+      const price = sourceData[field]
+      // Missing, zero and invalid scrape results must never erase known prices.
+      return typeof price === 'number' && Number.isFinite(price) && price > 0
+        ? [{ priceType, price }]
+        : []
+    })
   }
 
   private getCardDisplayData(card: CardWithSources): CardDisplayData {

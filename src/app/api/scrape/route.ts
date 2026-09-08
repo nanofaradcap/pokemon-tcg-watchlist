@@ -4,35 +4,13 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { scrapeWithPuppeteer } from '@/lib/puppeteer-scraping'
-import redis from '@/lib/redis'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { cardUrlSchema, parseCardUrl } from '@/lib/card-url'
 import { checkApiSecret } from '@/lib/api-auth'
 
 const BodySchema = z.object({
-  url: z.string().url(),
+  url: cardUrlSchema,
 })
-
-const TCGPLAYER_HOSTS = new Set(['tcgplayer.com', 'www.tcgplayer.com'])
-
-function isAllowedTcgplayerUrl(rawUrl: string): boolean {
-  try {
-    const parsed = new URL(rawUrl)
-    const isAllowedHost = TCGPLAYER_HOSTS.has(parsed.hostname.toLowerCase())
-    const isAllowedPath = /\/product\/(\d+)\//.test(parsed.pathname)
-    return parsed.protocol === 'https:' && isAllowedHost && isAllowedPath
-  } catch {
-    return false
-  }
-}
-
-async function checkRateLimit(ip: string): Promise<boolean> {
-  if (!redis || !redis.isOpen) return true
-  const windowSecs = 60
-  const limit = 10
-  const key = `ratelimit:scrape:${ip}:${Math.floor(Date.now() / (windowSecs * 1000))}`
-  const count = await redis.incr(key)
-  if (count === 1) await redis.expire(key, windowSecs)
-  return count <= limit
-}
 
 export async function POST(req: NextRequest) {
   const authError = checkApiSecret(req)
@@ -43,7 +21,7 @@ export async function POST(req: NextRequest) {
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
       || req.headers.get('x-real-ip')
       || 'unknown'
-    if (!(await checkRateLimit(ip))) {
+    if (!(await checkRateLimit('scrape', ip, 10))) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Please try again later.' },
         { status: 429 }
@@ -53,27 +31,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { url } = BodySchema.parse(body)
 
-    // Validate TCGplayer URL (protocol + exact hostname + path, not a substring match)
-    if (!isAllowedTcgplayerUrl(url)) {
-      return NextResponse.json(
-        { error: 'Invalid TCGplayer URL format' },
-        { status: 400 }
-      )
+    const source = parseCardUrl(url)
+    if (source.sourceType !== 'tcgplayer') {
+      return NextResponse.json({ error: 'Invalid TCGplayer URL format' }, { status: 400 })
     }
-
-    // Extract productId from URL
-    const productIdMatch = new URL(url).pathname.match(/\/product\/(\d+)\//)
-    if (!productIdMatch) {
-      return NextResponse.json(
-        { error: 'Invalid TCGplayer URL format' },
-        { status: 400 }
-      )
-    }
-    const productId = productIdMatch[1]
+    const productId = source.productId
 
     // Use Puppeteer scraping
     try {
-      const result = await scrapeWithPuppeteer(url, productId)
+      const result = await scrapeWithPuppeteer(source.url, productId)
       return NextResponse.json(result)
     } catch (puppeteerError) {
       console.error(`Puppeteer failed for product ${productId}:`, {
@@ -90,6 +56,9 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error('Scraping error:', error)
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(

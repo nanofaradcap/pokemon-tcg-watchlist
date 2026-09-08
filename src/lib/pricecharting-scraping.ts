@@ -1,3 +1,4 @@
+import { parseCardUrl } from './card-url'
 import chromium from '@sparticuz/chromium-min'
 
 const DEFAULT_CHROMIUM_VERSION = 'v138.0.2'
@@ -48,6 +49,10 @@ export interface PriceChartingData {
 }
 
 export async function scrapePriceCharting(url: string): Promise<PriceChartingData> {
+  const source = parseCardUrl(url)
+  if (source.sourceType !== 'pricecharting') throw new Error('Invalid pricecharting URL')
+  url = source.url
+
   let browser: Browser | null = null
   // Reduced timeout since we're using faster wait strategies (domcontentloaded instead of networkidle0)
   const timeout = 20000 // 20 seconds

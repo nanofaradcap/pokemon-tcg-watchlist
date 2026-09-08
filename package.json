@@ -16,7 +16,8 @@
     "postinstall": "prisma generate",
     "backup:json": "node scripts/backup-database.js",
     "deploy:vercel": "npm run pre-deploy && vercel --prod",
-    "deploy:preview": "npm run pre-deploy && vercel"
+    "deploy:preview": "npm run pre-deploy && vercel",
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "@playwright/test": "^1.55.0",

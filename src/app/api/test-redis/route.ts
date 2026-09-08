@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { redis } from '@/lib/redis'
+import { redis, withRedis } from '@/lib/redis'
 
 export async function GET() {
   try {
-    if (!redis) {
+    if (!redis?.isReady) {
       return NextResponse.json({
         status: 'error',
         message: 'Redis client not initialized',
@@ -15,15 +15,17 @@ export async function GET() {
     const testKey = 'test:connection'
     const testValue = `test-${Date.now()}`
     
-    // Set a test value
-    await redis.setEx(testKey, 60, testValue)
-    
-    // Get the test value
-    const retrievedValue = await redis.get(testKey)
-    
-    // Clean up
-    await redis.del(testKey)
-    
+    const retrievedValue = await withRedis(async (client) => {
+      await client.setEx(testKey, 60, testValue)
+      const value = await client.get(testKey)
+      await client.del(testKey)
+      return value
+    }, null)
+
+    if (retrievedValue === null) {
+      return NextResponse.json({ status: 'error', message: 'Redis connection failed' }, { status: 503 })
+    }
+
     return NextResponse.json({
       status: 'success',
       message: 'Redis is working!',

@@ -6,12 +6,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cardService } from '@/lib/card-service'
 import { checkApiSecret } from '@/lib/api-auth'
+import { cardUrlSchema } from '@/lib/card-url'
 
 const Profiles = ['Chen', 'Tiff', 'Pho', 'Ying', 'Son', 'Candice', 'Claude', 'Rachel', 'Roxanne', 'Connor'] as const
 type Profile = typeof Profiles[number]
 
 const AddCardSchema = z.object({
-  url: z.string().url().max(2048, 'URL too long'),
+  url: cardUrlSchema,
   profile: z.enum(Profiles),
 })
 
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(card)
   } catch (error) {
     console.error('Error adding card:', error)
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -87,7 +91,7 @@ export async function DELETE(req: NextRequest) {
     const cardId = searchParams.get('id')
     const profile = searchParams.get('profile') as Profile
 
-    if (!cardId || !profile) {
+    if (!cardId || !profile || !Profiles.includes(profile)) {
       return NextResponse.json(
         { error: 'Missing card ID or profile' },
         { status: 400 }

@@ -55,3 +55,6 @@ test-*.js
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Compiled isolated tests
+/.test-build/

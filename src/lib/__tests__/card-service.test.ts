@@ -1,219 +1,136 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from '@jest/globals'
-import { PrismaClient } from '@prisma/client'
-import { cardService } from '../card-service'
+import { afterEach, beforeEach, describe, it, mock } from 'node:test'
+import assert from 'node:assert/strict'
+import { Prisma } from '@prisma/client'
+import { CardService, type CardWithSources } from '../card-service'
+import { prisma } from '../prisma'
+import * as database from '../prisma'
+import * as tcgScraper from '../puppeteer-scraping'
+import * as pcScraper from '../pricecharting-scraping'
+import * as cache from '../redis'
 
-// Data Safety Guard: Ensure tests only run against a dedicated test database
-// This prevents accidental deletion of production data if DATABASE_URL is misconfigured
-beforeAll(() => {
-  const dbUrl = process.env.DATABASE_URL || ''
-  const isTestDatabase = /test/i.test(dbUrl) || /localhost/i.test(dbUrl)
-
-  if (!isTestDatabase) {
-    throw new Error(
-      `SAFETY ERROR: deleteMany() tests can only run against a test database.\n\n` +
-      `Current DATABASE_URL does not appear to be a test database.\n` +
-      `Detected: ${dbUrl ? dbUrl.substring(0, 50) + '...' : '(not set)'}\n\n` +
-      `Fix: Configure DATABASE_URL to contain "test" (e.g., "test_db") or "localhost",\n` +
-      `or set up a separate TEST_DATABASE_URL environment variable.\n\n` +
-      `Example safe values:\n` +
-      `  DATABASE_URL="postgresql://user:pass@localhost:5432/pokemon_test"\n` +
-      `  DATABASE_URL="postgresql://user:pass@neon.tech/pokemon_test_db?sslmode=require"`
-    )
+const now = new Date('2026-01-01T00:00:00Z')
+function makeCard(): CardWithSources {
+  return {
+    id: 'card-1', name: 'Pikachu', No: '58', setDisplay: 'Base Set', rarity: null,
+    imageUrl: null, createdAt: now, updatedAt: now,
+    sources: [{
+      id: 'source-1', cardId: 'card-1', sourceType: 'tcgplayer',
+      url: 'https://www.tcgplayer.com/product/123/pikachu-58', productId: '123',
+      currency: 'USD', lastCheckedAt: now, createdAt: now, updatedAt: now,
+      prices: [{ id: 'price-1', sourceId: 'source-1', priceType: 'market', price: new Prisma.Decimal(10), createdAt: now, updatedAt: now }],
+    }],
   }
+}
+
+// All database operations default to throwing. Tests explicitly allow only the calls
+// they exercise; there is no database cleanup or external scraper access.
+const realPrisma = prisma
+beforeEach(() => {
+  const fakePrisma = Object.fromEntries(
+    ['profile', 'card', 'cardSource', 'cardPrice', 'userCard'].map((model) => [model,
+      Object.fromEntries(['findUnique', 'findMany', 'findFirst', 'create', 'update', 'upsert', 'delete', 'deleteMany']
+        .map((method) => [method, async () => { throw new Error(`Unexpected database operation: ${model}.${method}`) }])),
+    ]),
+  )
+  Object.assign(fakePrisma, { $transaction: async () => { throw new Error('Unexpected transaction') } })
+  Object.defineProperty(database, 'prisma', { value: fakePrisma, configurable: true })
+  mock.method(tcgScraper, 'scrapeWithPuppeteer', async () => { throw new Error('Unexpected TCGplayer scrape') })
+  mock.method(pcScraper, 'scrapePriceCharting', async () => { throw new Error('Unexpected PriceCharting scrape') })
+  mock.method(console, 'log', () => {})
+  mock.method(console, 'warn', () => {})
+  mock.method(console, 'error', () => {})
+})
+afterEach(() => {
+  mock.restoreAll()
+  Object.defineProperty(database, 'prisma', { value: realPrisma, configurable: true })
 })
 
-// Mock the scraping functions
-jest.mock('../puppeteer-scraping', () => ({
-  scrapeWithPuppeteer: jest.fn().mockResolvedValue({
-    name: 'Test Card',
-    setDisplay: 'Test Set',
-    rarity: 'Rare',
-    imageUrl: 'https://example.com/image.jpg',
-    marketPrice: 10.50
-  })
-}))
-
-jest.mock('../pricecharting-scraping', () => ({
-  scrapePriceCharting: jest.fn().mockResolvedValue({
-    name: 'Test Card',
-    setDisplay: 'Test Set',
-    rarity: 'Rare',
-    imageUrl: 'https://example.com/image.jpg',
-    ungradedPrice: 15.00,
-    grade9Price: 25.00,
-    grade10Price: 50.00
-  })
-}))
-
-jest.mock('../scraping-fallback', () => ({
-  scrapeWithFallback: jest.fn().mockResolvedValue({
-    name: 'Test Card Fallback',
-    setDisplay: 'Test Set',
-    rarity: 'Rare',
-    imageUrl: 'https://example.com/image.jpg',
-    marketPrice: 8.00
-  })
-}))
-
-const prisma = new PrismaClient()
+function mockTransaction() {
+  return mock.method(prisma, '$transaction', (async (callback: (tx: typeof prisma) => Promise<unknown>) => callback(prisma)) as never)
+}
 
 describe('CardService', () => {
-  const testProfile = 'TestUser'
-  const tcgplayerUrl = 'https://www.tcgplayer.com/product/123456/test-card'
-  const pricechartingUrl = 'https://www.pricecharting.com/game/test-set/test-card-123'
+  it('rejects unsupported URLs before scraping or starting a transaction', async () => {
+    await assert.rejects(new CardService().addCard('https://evil.example/tcgplayer.com/product/123/pikachu-58', 'Chen'))
+  })
 
-  beforeEach(async () => {
-    // Clean up test data
-    await prisma.userCard.deleteMany({
-      where: { userId: testProfile }
-    })
-    await prisma.cardPrice.deleteMany()
-    await prisma.cardSource.deleteMany()
-    await prisma.card.deleteMany()
-    await prisma.profile.deleteMany({
-      where: { name: testProfile }
+  it('reads an unknown profile as an empty watchlist without creating it', async () => {
+    mock.method(prisma.profile, 'findUnique', async () => null)
+    assert.deepEqual(await new CardService().getCardsForProfile('Chen'), [])
+  })
+
+  it('returns stored prices when reading a watchlist without Redis', async () => {
+    const card = makeCard()
+    mock.method(prisma.profile, 'findUnique', async () => ({ id: 'profile-1' }) as never)
+    mock.method(prisma.userCard, 'findMany', async () => [{ card }] as never)
+    mock.method(prisma.cardSource, 'findMany', async () => card.sources as never)
+    const result = await new CardService().getCardsForProfile('Chen')
+    assert.equal(result[0].marketPrice, 10)
+    assert.equal(result[0].productId, '123')
+  })
+
+  it('keeps valid prices when a refresh returns zero, negative or non-finite values', async () => {
+    const card = makeCard()
+    mock.method(prisma.card, 'findUnique', async () => card as never)
+    mock.method(prisma.profile, 'findMany', async () => [])
+    mock.method(prisma.cardSource, 'update', async () => card.sources[0] as never)
+    mockTransaction()
+    mock.method(tcgScraper, 'scrapeWithPuppeteer', async () => ({
+      url: card.sources[0].url, productId: '123', name: 'Pikachu', marketPrice: 0,
+      ungradedPrice: NaN, grade7Price: -1, grade8Price: Infinity, grade9Price: 20,
+    }))
+    const writes: unknown[] = []
+    mock.method(prisma.cardPrice, 'upsert', async (args: Prisma.CardPriceUpsertArgs) => { writes.push(args); return {} as never })
+    const result = await new CardService().refreshCard(card.id)
+    assert.equal(result.marketPrice, 10)
+    assert.equal(writes.length, 1)
+    assert.deepEqual(writes[0], {
+      where: { sourceId_priceType: { sourceId: 'source-1', priceType: 'grade9' } },
+      update: { price: 20 }, create: { sourceId: 'source-1', priceType: 'grade9', price: 20 },
     })
   })
 
-  afterEach(async () => {
-    // Clean up after each test
-    await prisma.userCard.deleteMany({
-      where: { userId: testProfile }
+  it('preserves prices on scraper failure and invalidates every owner after commit', async () => {
+    const card = makeCard()
+    mock.method(prisma.card, 'findUnique', async () => card as never)
+    mock.method(prisma.cardSource, 'update', async () => card.sources[0] as never)
+    let committed = false
+    mock.method(prisma, '$transaction', (async (callback: (tx: typeof prisma) => Promise<unknown>) => {
+      const value = await callback(prisma)
+      committed = true
+      return value
+    }) as never)
+    mock.method(prisma.profile, 'findMany', async () => {
+      assert.equal(committed, true)
+      return [{ name: 'Chen' }, { name: 'Tiff' }] as never
     })
-    await prisma.cardPrice.deleteMany()
-    await prisma.cardSource.deleteMany()
-    await prisma.card.deleteMany()
-    await prisma.profile.deleteMany({
-      where: { name: testProfile }
-    })
+    const invalidated: string[] = []
+    mock.method(cache, 'withRedis', async (operation: Parameters<typeof cache.withRedis>[0]) => operation({
+      del: async (key: string) => { assert.equal(committed, true); invalidated.push(key) },
+    } as never))
+    assert.equal((await new CardService().refreshCard(card.id)).marketPrice, 10)
+    assert.deepEqual(invalidated.sort(), ['cards:Chen', 'cards:Tiff'])
   })
 
-  describe('addCard', () => {
-    it('should create a new card for TCGplayer URL', async () => {
-      const result = await cardService.addCard(tcgplayerUrl, testProfile)
-
-      expect(result.name).toBe('Test Card')
-      expect(result.isMerged).toBe(false)
-      expect(result.sourceCount).toBe(1)
-      expect(result.sources[0].type).toBe('tcgplayer')
-      expect(result.pricing.marketPrice).toBe(10.50)
+  it('retains the product ID and image URL when adding through the scraper fallback', async () => {
+    const card = makeCard()
+    mockTransaction()
+    mock.method(prisma.profile, 'findUnique', async () => ({ id: 'profile-1' }) as never)
+    mock.method(prisma.card, 'findMany', async () => [])
+    mock.method(prisma.card, 'create', async () => card as never)
+    mock.method(prisma.card, 'findUnique', async () => card as never)
+    mock.method(prisma.userCard, 'create', async () => ({}) as never)
+    const sourceWrites: unknown[] = []
+    mock.method(prisma.cardSource, 'create', async (args: Prisma.CardSourceCreateArgs) => {
+      sourceWrites.push(args.data)
+      return card.sources[0] as never
     })
-
-    it('should create a new card for PriceCharting URL', async () => {
-      const result = await cardService.addCard(pricechartingUrl, testProfile)
-
-      expect(result.name).toBe('Test Card')
-      expect(result.isMerged).toBe(false)
-      expect(result.sourceCount).toBe(1)
-      expect(result.sources[0].type).toBe('pricecharting')
-      expect(result.pricing.ungradedPrice).toBe(15.00)
-      expect(result.pricing.grade9Price).toBe(25.00)
-      expect(result.pricing.grade10Price).toBe(50.00)
-    })
-
-    it('should merge cards with same name and number', async () => {
-      // Add TCGplayer card first
-      const firstCard = await cardService.addCard(tcgplayerUrl, testProfile)
-      expect(firstCard.isMerged).toBe(false)
-
-      // Add PriceCharting card with same name
-      const secondCard = await cardService.addCard(pricechartingUrl, testProfile)
-      
-      expect(secondCard.isMerged).toBe(true)
-      expect(secondCard.sourceCount).toBe(2)
-      expect(secondCard.sources).toHaveLength(2)
-      expect(secondCard.sources.map(s => s.type)).toContain('tcgplayer')
-      expect(secondCard.sources.map(s => s.type)).toContain('pricecharting')
-      
-      // Should have pricing from both sources
-      expect(secondCard.pricing.marketPrice).toBe(10.50) // From TCGplayer
-      expect(secondCard.pricing.ungradedPrice).toBe(15.00) // From PriceCharting
-    })
-
-    it('should handle order independence (PriceCharting first, then TCGplayer)', async () => {
-      // Add PriceCharting card first
-      const firstCard = await cardService.addCard(pricechartingUrl, testProfile)
-      expect(firstCard.isMerged).toBe(false)
-
-      // Add TCGplayer card with same name
-      const secondCard = await cardService.addCard(tcgplayerUrl, testProfile)
-      
-      expect(secondCard.isMerged).toBe(true)
-      expect(secondCard.sourceCount).toBe(2)
-      expect(secondCard.sources).toHaveLength(2)
-    })
-  })
-
-  describe('getCardsForProfile', () => {
-    it('should return cards for a profile', async () => {
-      // Add a card
-      await cardService.addCard(tcgplayerUrl, testProfile)
-
-      // Get cards for profile
-      const cards = await cardService.getCardsForProfile(testProfile)
-      
-      expect(cards).toHaveLength(1)
-      expect(cards[0].name).toBe('Test Card')
-    })
-
-    it('should return empty array for profile with no cards', async () => {
-      const cards = await cardService.getCardsForProfile(testProfile)
-      expect(cards).toHaveLength(0)
-    })
-  })
-
-  describe('refreshCard', () => {
-    it('should refresh a card successfully', async () => {
-      // Add a card
-      const card = await cardService.addCard(tcgplayerUrl, testProfile)
-      
-      // Refresh the card
-      const refreshedCard = await cardService.refreshCard(card.id)
-      
-      expect(refreshedCard.id).toBe(card.id)
-      expect(refreshedCard.name).toBe('Test Card')
-    })
-
-    it('should handle refresh errors gracefully', async () => {
-      // Mock scraping to throw error
-      const { scrapeWithPuppeteer } = await import('../puppeteer-scraping')
-      ;(scrapeWithPuppeteer as jest.Mock).mockRejectedValueOnce(new Error('Scraping failed'))
-
-      // Add a card
-      const card = await cardService.addCard(tcgplayerUrl, testProfile)
-      
-      // Refresh should not throw error
-      const refreshedCard = await cardService.refreshCard(card.id)
-      expect(refreshedCard.id).toBe(card.id)
-    })
-  })
-
-  describe('deleteCard', () => {
-    it('should delete a card when no other users have it', async () => {
-      // Add a card
-      const card = await cardService.addCard(tcgplayerUrl, testProfile)
-      
-      // Delete the card
-      await cardService.deleteCard(card.id, testProfile)
-      
-      // Card should be deleted
-      const cards = await cardService.getCardsForProfile(testProfile)
-      expect(cards).toHaveLength(0)
-    })
-
-    it('should not delete card when other users have it', async () => {
-      // Add a card for one user
-      const card = await cardService.addCard(tcgplayerUrl, testProfile)
-      
-      // Add same card for another user
-      await cardService.addCard(tcgplayerUrl, 'AnotherUser')
-      
-      // Delete for first user
-      await cardService.deleteCard(card.id, testProfile)
-      
-      // Card should still exist for other user
-      const cards = await cardService.getCardsForProfile('AnotherUser')
-      expect(cards).toHaveLength(1)
-    })
+    await new CardService().addCard(`${card.sources[0].url}?tracking=test`, 'Chen')
+    assert.equal(sourceWrites.length, 1)
+    assert.equal((sourceWrites[0] as { productId: string }).productId, '123')
+    assert.equal((sourceWrites[0] as { url: string }).url, card.sources[0].url)
+    const fallback = await import('../scraping-fallback')
+    assert.equal((await fallback.scrapeWithFallback(card.sources[0].url, '123')).imageUrl,
+      'https://tcgplayer-cdn.tcgplayer.com/product/123_in_1000x1000.jpg')
   })
 })

@@ -1,3 +1,4 @@
+import { parseCardUrl } from './card-url'
 import chromium from '@sparticuz/chromium-min'
 
 const DEFAULT_CHROMIUM_VERSION = 'v138.0.2'
@@ -177,6 +178,11 @@ function chooseBestPriceCandidate(candidates: MarketPriceCandidate[]): MarketPri
 }
 
 export async function scrapeWithPuppeteer(url: string, productId: string): Promise<ScrapedData> {
+  const source = parseCardUrl(url)
+  if (source.sourceType !== 'tcgplayer') throw new Error('Invalid tcgplayer URL')
+  url = source.url
+  productId = source.productId
+
   let browser: Browser | null = null
   
   try {

@@ -46,6 +46,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Development checks
+
+After installing dependencies with `npm ci`, run:
+
+```bash
+npm test
+npm run type-check
+npm run lint
+npm run build
+```
+
+`npm test` compiles and runs the Node.js regression suite with mocked database and scraper dependencies. It overrides database/cache connection settings and does not require a live database, Redis, or browser. The same checks run on pushes and pull requests.
+
+Redis is optional. Set `REDIS_URL` to enable caching and request limits; without it, the app reads directly from PostgreSQL. Unavailable Redis connections fall back without blocking requests, with a 500 ms limit on cache operations. Request limits also fail open during Redis outages.
+
 ## Usage
 
 1. **Add Cards**: Paste TCGplayer or PriceCharting URLs to add cards to your watchlist
@@ -68,10 +83,10 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 ## Automated Backups
 
-A scheduled GitHub Action (`.github/workflows/database-backup.yml`) creates daily database snapshots and retains them for 30 days. Each run produces both a structured JSON export and a PostgreSQL `pg_dump` SQL file.
+A scheduled GitHub Action (`.github/workflows/database-backup.yml`) creates weekly database snapshots and retains them for 30 days. Each scheduled run produces a PostgreSQL `pg_dump` SQL file. For a separate JSON export, run `npm run backup:json`.
 
 To enable the workflow:
 
 1. Add `DATABASE_URL` as a repository secret (Settings → Secrets and variables → Actions).
 2. (Optional) Add a repository variable `SCHEMA_VERSION` to label exported snapshots.
-3. Leave the workflow enabled; it runs every day at 08:00 UTC and uploads the compressed backups as build artifacts with 30-day retention. You can also trigger a manual backup via the *Run workflow* button in GitHub.
+3. Leave the workflow enabled; it runs every Sunday at 08:00 UTC and uploads the compressed backups as build artifacts with 30-day retention. You can also trigger a manual backup via the *Run workflow* button in GitHub.
